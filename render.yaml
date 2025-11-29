@@ -1,0 +1,95 @@
+# Render Blueprint for Mardeys Dashboard
+# Deploy backend and frontend on Render
+
+services:
+  # Backend API Service
+  - type: web
+    name: mardeys-dashboard-api
+    env: node
+    region: oregon
+    plan: starter
+    branch: main
+    buildCommand: npm install
+    startCommand: node backend/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+        # Add this in Render dashboard: Settings > Environment Variables
+      - key: JWT_SECRET
+        generateValue: true
+        # Auto-generated secure secret
+      - key: FRONTEND_URL
+        value: https://mardeys-dashboard.onrender.com
+        # Update with your actual frontend URL
+      - key: WORDPRESS_URL
+        sync: false
+      - key: WORDPRESS_USERNAME
+        sync: false
+      - key: WORDPRESS_APP_PASSWORD
+        sync: false
+      - key: WOOCOMMERCE_URL
+        sync: false
+      - key: WOOCOMMERCE_CONSUMER_KEY
+        sync: false
+      - key: WOOCOMMERCE_CONSUMER_SECRET
+        sync: false
+      - key: DIGITALOCEAN_API_TOKEN
+        sync: false
+      - key: DIGITALOCEAN_DROPLET_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_ZONE_ID
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: ALERT_THRESHOLD_RESPONSE_TIME
+        value: 3000
+      - key: ALERT_THRESHOLD_CPU
+        value: 80
+      - key: ALERT_THRESHOLD_MEMORY
+        value: 85
+      - key: ALERT_THRESHOLD_DISK
+        value: 90
+
+  # Frontend Static Site (if using Render for frontend)
+  # Alternative: Use Vercel for frontend instead
+  - type: web
+    name: mardeys-dashboard-frontend
+    env: static
+    region: oregon
+    plan: starter
+    branch: main
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://mardeys-dashboard-api.onrender.com
+        # Update with your actual backend URL
+
+# MongoDB Database
+# Option 1: Use Render's PostgreSQL and add MongoDB separately
+# Option 2: Use MongoDB Atlas (recommended)
+# Add MongoDB Atlas connection string in environment variables
+
+# Note: Render free tier services sleep after 15 minutes of inactivity
+# Consider upgrading to paid plans for production use

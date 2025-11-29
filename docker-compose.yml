@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: mardeys-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: changeme
+      MONGO_INITDB_DATABASE: mardeys-dashboard
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - mardeys-network
+
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: mardeys-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:changeme@mongodb:27017/mardeys-dashboard?authSource=admin
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - mardeys-network
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mardeys-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - mardeys-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  mardeys-network:
+    driver: bridge
