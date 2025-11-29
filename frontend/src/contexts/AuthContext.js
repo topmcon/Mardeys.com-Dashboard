@@ -12,6 +12,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const verifyToken = async () => {
+    // Temporarily bypass authentication - auto-login as demo admin
+    setUser({ username: 'demo', role: 'admin', email: 'demo@mardeys.com' });
+    setLoading(false);
+    return;
+    
     const token = localStorage.getItem('token');
     if (!token) {
       setLoading(false);
