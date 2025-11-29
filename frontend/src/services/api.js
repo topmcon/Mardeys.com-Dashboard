@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// Production API URL - must include /api path
 const API_URL = process.env.REACT_APP_API_URL || 'https://mardeys-dashboard-api.onrender.com/api';
 
 // Create axios instance
