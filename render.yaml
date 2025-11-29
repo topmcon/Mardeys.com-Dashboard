@@ -46,10 +46,20 @@ services:
         sync: false
       - key: CLOUDFLARE_ZONE_ID
         sync: false
+      - key: CLOUDFLARE_DOMAIN
+        sync: false
+      - key: PAGESPEED_API_KEY
+        sync: false
+      - key: SSL_WARNING_DAYS
+        value: 30
+      - key: SSL_CRITICAL_DAYS
+        value: 15
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
         value: 587
+      - key: SMTP_SECURE
+        value: false
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS
