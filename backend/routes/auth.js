@@ -9,6 +9,11 @@ router.post('/register', async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
 
+    // Validate required fields
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+
     // Check if user exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
@@ -31,8 +36,8 @@ router.post('/register', async (req, res) => {
       userId: user._id
     });
   } catch (error) {
-    logger.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    logger.error('Registration error:', error.message);
+    res.status(500).json({ error: 'Registration failed', details: error.message });
   }
 });
 
