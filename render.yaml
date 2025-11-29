@@ -7,7 +7,7 @@ services:
     name: mardeys-dashboard-api
     env: node
     region: oregon
-    plan: free
+    plan: starter
     branch: main
     buildCommand: npm install
     startCommand: node backend/server.js
