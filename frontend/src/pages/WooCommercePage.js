@@ -104,21 +104,21 @@ const WooCommercePage = () => {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Store Health</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="flex items-center gap-4">
-                <div className={`w-3 h-3 rounded-full ${getStatusDot(data.health?.status)}`}></div>
+                <div className={`w-3 h-3 rounded-full ${data.health?.isUp ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
-                  <p className={`font-semibold capitalize ${data.health?.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
-                    {data.health?.status || 'Unknown'}
+                  <p className={`font-semibold capitalize ${data.health?.isUp ? 'text-green-600' : 'text-red-600'}`}>
+                    {data.health?.isUp ? 'Online' : 'Offline'}
                   </p>
                 </div>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Response Time</p>
-                <p className="font-semibold text-gray-900">{data.health?.responseTime || 'N/A'}</p>
+                <p className="font-semibold text-gray-900">{data.health?.responseTime ? data.health.responseTime + 'ms' : 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">API Endpoint</p>
-                <p className="font-medium text-gray-900 text-sm">Store API (Public)</p>
+                <p className="text-sm text-gray-500">Products Available</p>
+                <p className="font-medium text-gray-900 text-sm">{data.health?.productsAvailable ? 'Yes' : 'No'}</p>
               </div>
             </div>
           </div>

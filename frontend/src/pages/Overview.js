@@ -86,16 +86,16 @@ const Overview = () => {
     let healthy = 0;
     let total = 0;
 
-    if (servicesData.wordpress?.health?.status === 'healthy') healthy++;
+    if (servicesData.wordpress?.health?.isUp) healthy++;
     if (servicesData.wordpress) total++;
 
-    if (servicesData.woocommerce?.health?.status === 'healthy') healthy++;
+    if (servicesData.woocommerce?.health?.isUp) healthy++;
     if (servicesData.woocommerce) total++;
 
-    if (servicesData.digitalocean?.droplet?.status === 'active') healthy++;
+    if (servicesData.digitalocean?.health?.isHealthy) healthy++;
     if (servicesData.digitalocean) total++;
 
-    if (servicesData.cloudflare?.zone?.status === 'active') healthy++;
+    if (servicesData.cloudflare?.health?.isHealthy) healthy++;
     if (servicesData.cloudflare) total++;
 
     return total > 0 ? Math.round((healthy / total) * 100) : 0;
@@ -186,13 +186,13 @@ const Overview = () => {
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">🌐</span>
             <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
-              servicesData.wordpress?.health?.status === 'healthy',
+              servicesData.wordpress?.health?.isUp,
               errors.wordpress
             )}></div>
           </div>
           <h3 className="font-semibold text-gray-900">WordPress</h3>
           <p className="text-sm text-gray-500 mt-1">
-            {servicesData.wordpress?.health?.responseTime || 'N/A'}
+            {servicesData.wordpress?.health?.responseTime ? servicesData.wordpress.health.responseTime + 'ms' : 'N/A'}
           </p>
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex justify-between text-sm">
@@ -210,7 +210,7 @@ const Overview = () => {
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">🛒</span>
             <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
-              servicesData.woocommerce?.health?.status === 'healthy',
+              servicesData.woocommerce?.health?.isUp,
               errors.woocommerce
             )}></div>
           </div>
@@ -236,7 +236,7 @@ const Overview = () => {
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">☁️</span>
             <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
-              servicesData.digitalocean?.droplet?.status === 'active',
+              servicesData.digitalocean?.health?.isHealthy,
               errors.digitalocean
             )}></div>
           </div>
@@ -262,13 +262,13 @@ const Overview = () => {
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">🔒</span>
             <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
-              servicesData.cloudflare?.zone?.status === 'active',
+              servicesData.cloudflare?.health?.isHealthy,
               errors.cloudflare
             )}></div>
           </div>
           <h3 className="font-semibold text-gray-900">Cloudflare</h3>
           <p className="text-sm text-gray-500 mt-1">
-            {servicesData.cloudflare?.zone?.name || 'N/A'}
+            {servicesData.cloudflare?.zone || 'N/A'}
           </p>
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex justify-between text-sm">

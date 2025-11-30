@@ -107,30 +107,30 @@ const CloudflarePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <p className="text-sm text-gray-500">Zone Name</p>
-                <p className="font-semibold text-gray-900">{data.zone?.name || 'N/A'}</p>
+                <p className="font-semibold text-gray-900">{data.zone || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>
-                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(data.zone?.status)}`}>
-                  {data.zone?.status || 'Unknown'}
+                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${data.health?.isHealthy ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+                  {data.health?.status || 'Unknown'}
                 </span>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Plan</p>
-                <p className="font-semibold text-gray-900 capitalize">{data.zone?.plan || 'N/A'}</p>
+                <p className="text-sm text-gray-500">Health</p>
+                <p className="font-semibold text-gray-900 capitalize">{data.health?.isHealthy ? 'Healthy' : 'Unhealthy'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">SSL Mode</p>
-                <p className="font-semibold text-gray-900 capitalize">{data.zone?.ssl || 'N/A'}</p>
+                <p className="text-sm text-gray-500">Last Checked</p>
+                <p className="font-semibold text-gray-900 capitalize">{data.lastChecked ? new Date(data.lastChecked).toLocaleTimeString() : 'N/A'}</p>
               </div>
             </div>
             
             {/* Nameservers */}
-            {data.zone?.nameservers && data.zone.nameservers.length > 0 && (
+            {data.health?.nameServers && data.health.nameServers.length > 0 && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-500 mb-2">Nameservers</p>
                 <div className="flex flex-wrap gap-2">
-                  {data.zone.nameservers.map((ns, index) => (
+                  {data.health.nameServers.map((ns, index) => (
                     <span key={index} className="px-3 py-1 bg-gray-200 rounded-full text-sm font-mono text-gray-700">
                       {ns}
                     </span>
