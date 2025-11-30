@@ -20,22 +20,8 @@ const Analytics = () => {
     
     setLoading(false);
     
-    try {
-      const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 1;
-      
-      const [wpMetrics, wcMetrics] = await Promise.all([
-        metricsAPI.getMetrics({ type: 'wordpress', hours, limit: 100 }).catch(e => ({ data: { metrics: [] } })),
-        metricsAPI.getMetrics({ type: 'woocommerce', hours, limit: 100 }).catch(e => ({ data: { metrics: [] } }))
-      ]);
-
-      setMetrics({
-        wordpress: wpMetrics.data.metrics || [],
-        woocommerce: wcMetrics.data.metrics || []
-      });
-    } catch (error) {
-      console.error('Analytics data error:', error);
-      setMetrics({ wordpress: [], woocommerce: [] });
-    }
+    // Use mock data - API calls disabled
+    setMetrics({ wordpress: [], woocommerce: [] });
   };
 
   const getPerformanceData = () => {

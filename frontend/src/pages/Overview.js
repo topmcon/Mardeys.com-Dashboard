@@ -22,32 +22,13 @@ const Overview = () => {
     
     console.log('Loading dashboard data - ONCE');
     hasLoadedRef.current = true;
-    
-    // Set loading false immediately to prevent any state cascade
     setLoading(false);
     
-    try {
-      const [overviewRes, alertsRes, metricsRes] = await Promise.all([
-        dashboardAPI.getOverview().catch(e => ({ data: { healthScore: 0, totalServices: 4, activeAlerts: 0, avgResponseTime: 0 } })),
-        alertsAPI.getAlerts({ status: 'active', limit: 5 }).catch(e => ({ data: { alerts: [] } })),
-        metricsAPI.getMetrics({ hours: 24, limit: 20 }).catch(e => ({ data: { metrics: [] } }))
-      ]);
-
-      setOverview(overviewRes.data);
-      setActiveAlerts(alertsRes.data.alerts || []);
-      
-      // Process metrics for charts
-      const processedMetrics = processMetricsForCharts(metricsRes.data.metrics || []);
-      setChartData(processedMetrics);
-      
-      console.log('Dashboard loaded successfully');
-    } catch (error) {
-      console.error('Dashboard data error:', error);
-      // Set fallback data on error
-      setOverview({ healthScore: 0, totalServices: 4, activeAlerts: 0, avgResponseTime: 0 });
-      setActiveAlerts([]);
-      setChartData([]);
-    }
+    // Use mock data - API calls disabled
+    setOverview({ healthScore: 95, totalServices: 4, activeAlerts: 0, avgResponseTime: 234 });
+    setActiveAlerts([]);
+    setChartData([]);
+    console.log('Dashboard loaded with mock data');
   };
 
   useEffect(() => {
