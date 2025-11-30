@@ -77,12 +77,11 @@ const Overview = () => {
 
   const formatNumber = (num) => {
     if (num === null || num === undefined) return '0';
-    if (num >= 1000000) return \`\${(num / 1000000).toFixed(1)}M\`;
-    if (num >= 1000) return \`\${(num / 1000).toFixed(1)}K\`;
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
     return num.toString();
   };
 
-  // Calculate overall health
   const calculateOverallHealth = () => {
     let healthy = 0;
     let total = 0;
@@ -103,6 +102,20 @@ const Overview = () => {
   };
 
   const healthScore = calculateOverallHealth();
+
+  const getStatusDotClass = (isHealthy, hasError) => {
+    if (isHealthy) return 'bg-green-500';
+    if (hasError) return 'bg-red-500';
+    return 'bg-gray-300';
+  };
+
+  const getCpuClass = (cpu) => {
+    return (cpu || 0) > 70 ? 'text-yellow-600' : 'text-green-600';
+  };
+
+  const getProgressClass = (value) => {
+    return (value || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500';
+  };
 
   if (loading && !servicesData.wordpress && !servicesData.woocommerce) {
     return (
@@ -172,10 +185,10 @@ const Overview = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">🌐</span>
-            <div className={\`w-3 h-3 rounded-full \${
-              servicesData.wordpress?.health?.status === 'healthy' ? 'bg-green-500' : 
-              errors.wordpress ? 'bg-red-500' : 'bg-gray-300'
-            }\`}></div>
+            <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
+              servicesData.wordpress?.health?.status === 'healthy',
+              errors.wordpress
+            )}></div>
           </div>
           <h3 className="font-semibold text-gray-900">WordPress</h3>
           <p className="text-sm text-gray-500 mt-1">
@@ -196,10 +209,10 @@ const Overview = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">🛒</span>
-            <div className={\`w-3 h-3 rounded-full \${
-              servicesData.woocommerce?.health?.status === 'healthy' ? 'bg-green-500' : 
-              errors.woocommerce ? 'bg-red-500' : 'bg-gray-300'
-            }\`}></div>
+            <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
+              servicesData.woocommerce?.health?.status === 'healthy',
+              errors.woocommerce
+            )}></div>
           </div>
           <h3 className="font-semibold text-gray-900">WooCommerce</h3>
           <p className="text-sm text-gray-500 mt-1">
@@ -222,10 +235,10 @@ const Overview = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">☁️</span>
-            <div className={\`w-3 h-3 rounded-full \${
-              servicesData.digitalocean?.droplet?.status === 'active' ? 'bg-green-500' : 
-              errors.digitalocean ? 'bg-red-500' : 'bg-gray-300'
-            }\`}></div>
+            <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
+              servicesData.digitalocean?.droplet?.status === 'active',
+              errors.digitalocean
+            )}></div>
           </div>
           <h3 className="font-semibold text-gray-900">DigitalOcean</h3>
           <p className="text-sm text-gray-500 mt-1">
@@ -234,10 +247,8 @@ const Overview = () => {
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">CPU</span>
-              <span className={\`font-medium \${
-                (servicesData.digitalocean?.metrics?.cpu || 0) > 70 ? 'text-yellow-600' : 'text-green-600'
-              }\`}>
-                {servicesData.digitalocean?.metrics?.cpu?.toFixed(1) || 0}%
+              <span className={'font-medium ' + getCpuClass(servicesData.digitalocean?.metrics?.cpu)}>
+                {(servicesData.digitalocean?.metrics?.cpu || 0).toFixed(1)}%
               </span>
             </div>
           </div>
@@ -250,10 +261,10 @@ const Overview = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-2xl">🔒</span>
-            <div className={\`w-3 h-3 rounded-full \${
-              servicesData.cloudflare?.zone?.status === 'active' ? 'bg-green-500' : 
-              errors.cloudflare ? 'bg-red-500' : 'bg-gray-300'
-            }\`}></div>
+            <div className={'w-3 h-3 rounded-full ' + getStatusDotClass(
+              servicesData.cloudflare?.zone?.status === 'active',
+              errors.cloudflare
+            )}></div>
           </div>
           <h3 className="font-semibold text-gray-900">Cloudflare</h3>
           <p className="text-sm text-gray-500 mt-1">
@@ -304,42 +315,36 @@ const Overview = () => {
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-500">CPU</span>
-                <span className="font-medium">{servicesData.digitalocean?.metrics?.cpu?.toFixed(1) || 0}%</span>
+                <span className="font-medium">{(servicesData.digitalocean?.metrics?.cpu || 0).toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className={\`h-2 rounded-full \${
-                    (servicesData.digitalocean?.metrics?.cpu || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
-                  }\`}
-                  style={{ width: \`\${Math.min(servicesData.digitalocean?.metrics?.cpu || 0, 100)}%\` }}
+                  className={'h-2 rounded-full ' + getProgressClass(servicesData.digitalocean?.metrics?.cpu)}
+                  style={{ width: Math.min(servicesData.digitalocean?.metrics?.cpu || 0, 100) + '%' }}
                 ></div>
               </div>
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-500">Memory</span>
-                <span className="font-medium">{servicesData.digitalocean?.metrics?.memory?.toFixed(1) || 0}%</span>
+                <span className="font-medium">{(servicesData.digitalocean?.metrics?.memory || 0).toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className={\`h-2 rounded-full \${
-                    (servicesData.digitalocean?.metrics?.memory || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
-                  }\`}
-                  style={{ width: \`\${Math.min(servicesData.digitalocean?.metrics?.memory || 0, 100)}%\` }}
+                  className={'h-2 rounded-full ' + getProgressClass(servicesData.digitalocean?.metrics?.memory)}
+                  style={{ width: Math.min(servicesData.digitalocean?.metrics?.memory || 0, 100) + '%' }}
                 ></div>
               </div>
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-500">Disk</span>
-                <span className="font-medium">{servicesData.digitalocean?.metrics?.disk?.toFixed(1) || 0}%</span>
+                <span className="font-medium">{(servicesData.digitalocean?.metrics?.disk || 0).toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className={\`h-2 rounded-full \${
-                    (servicesData.digitalocean?.metrics?.disk || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
-                  }\`}
-                  style={{ width: \`\${Math.min(servicesData.digitalocean?.metrics?.disk || 0, 100)}%\` }}
+                  className={'h-2 rounded-full ' + getProgressClass(servicesData.digitalocean?.metrics?.disk)}
+                  style={{ width: Math.min(servicesData.digitalocean?.metrics?.disk || 0, 100) + '%' }}
                 ></div>
               </div>
             </div>
@@ -365,7 +370,7 @@ const Overview = () => {
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Cache Hit Rate</span>
               <span className="text-lg font-semibold text-green-600">
-                {servicesData.cloudflare?.cache?.hitRatio?.toFixed(1) || 0}%
+                {(servicesData.cloudflare?.cache?.hitRatio || 0).toFixed(1)}%
               </span>
             </div>
           </div>
@@ -379,8 +384,7 @@ const Overview = () => {
             <span>⚠️</span> Inventory Alerts
           </h3>
           <p className="text-yellow-700 mt-2">
-            {servicesData.woocommerce?.products?.lowStock || 0} products are low on stock, 
-            {servicesData.woocommerce?.products?.outOfStock || 0} are out of stock.
+            {servicesData.woocommerce?.products?.lowStock || 0} products are low on stock, {servicesData.woocommerce?.products?.outOfStock || 0} are out of stock.
           </p>
           <button 
             onClick={() => navigate('/dashboard/woocommerce')}
