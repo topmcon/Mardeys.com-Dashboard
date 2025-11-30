@@ -19,8 +19,14 @@ const Alerts = () => {
     
     setLoading(false);
     
-    // Use mock data - API calls disabled
-    setAlerts([]);
+    // Fetch real data from API
+    try {
+      const response = await alertsAPI.getAlerts({ limit: 100 }).catch(() => ({ data: { alerts: [] } }));
+      setAlerts(response.data.alerts || []);
+    } catch (error) {
+      console.error('Alerts error:', error);
+      setAlerts([]);
+    }
   };
 
   useEffect(() => {

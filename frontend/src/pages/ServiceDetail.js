@@ -24,8 +24,15 @@ const ServiceDetail = () => {
     
     setLoading(false);
     
-    // Use mock data - API calls disabled
-    setMetrics([]);
+    // Fetch real data from API
+    try {
+      const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 1;
+      const metricsRes = await metricsAPI.getMetrics({ type: service, hours, limit: 50 }).catch(() => ({ data: { metrics: [] } }));
+      setMetrics(metricsRes.data.metrics || []);
+    } catch (error) {
+      console.error('Service error:', error);
+      setMetrics([]);
+    }
   };
 
   const getServiceConfig = (serviceName) => {

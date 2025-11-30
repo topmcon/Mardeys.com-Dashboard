@@ -29,9 +29,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Don't redirect on 401 - just reject the promise
+    // The AuthContext handles authentication state
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      console.log('API returned 401 - ignoring redirect');
     }
     return Promise.reject(error);
   }
