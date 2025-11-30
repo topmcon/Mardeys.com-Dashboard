@@ -75,35 +75,18 @@ export const settingsAPI = {
   deleteSetting: (key) => api.delete(`/settings/${key}`)
 };
 
-// WebSocket connection
+// Services API - detailed data from each source
+export const servicesAPI = {
+  getWordPress: () => api.get('/services/wordpress'),
+  getWooCommerce: () => api.get('/services/woocommerce'),
+  getDigitalOcean: () => api.get('/services/digitalocean'),
+  getCloudflare: () => api.get('/services/cloudflare')
+};
+
+// WebSocket connection - DISABLED to prevent loops
 export const connectWebSocket = (onMessage) => {
-  const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:5000';
-  const ws = new WebSocket(WS_URL);
-
-  ws.onopen = () => {
-    console.log('WebSocket connected');
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      onMessage(data);
-    } catch (error) {
-      console.error('WebSocket message parse error:', error);
-    }
-  };
-
-  ws.onerror = (error) => {
-    console.error('WebSocket error:', error);
-  };
-
-  ws.onclose = () => {
-    console.log('WebSocket disconnected');
-    // Attempt to reconnect after 5 seconds
-    setTimeout(() => connectWebSocket(onMessage), 5000);
-  };
-
-  return ws;
+  console.log('WebSocket disabled');
+  return { close: () => {} };
 };
 
 export default api;

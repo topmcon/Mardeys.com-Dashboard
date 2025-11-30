@@ -7,8 +7,10 @@ const Navigation = () => {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📊', path: '/dashboard' },
-    { id: 'services', label: 'Services', icon: '🌐', path: '/dashboard/services' },
-    { id: 'analytics', label: 'Analytics', icon: '📈', path: '/dashboard/analytics' },
+    { id: 'wordpress', label: 'WordPress', icon: '🌐', path: '/dashboard/wordpress' },
+    { id: 'woocommerce', label: 'WooCommerce', icon: '🛒', path: '/dashboard/woocommerce' },
+    { id: 'digitalocean', label: 'DigitalOcean', icon: '☁️', path: '/dashboard/digitalocean' },
+    { id: 'cloudflare', label: 'Cloudflare', icon: '🔒', path: '/dashboard/cloudflare' },
     { id: 'alerts', label: 'Alerts', icon: '🔔', path: '/dashboard/alerts' },
     { id: 'settings', label: 'Settings', icon: '⚙️', path: '/dashboard/settings' }
   ];

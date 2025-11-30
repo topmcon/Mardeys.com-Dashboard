@@ -1,296 +1,425 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { dashboardAPI, metricsAPI, alertsAPI } from '../services/api';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { formatDistanceToNow } from 'date-fns';
-import StatCard from '../components/StatCard';
-import ServiceStatusCard from '../components/ServiceStatusCard';
-import AlertCard from '../components/AlertCard';
+import { useNavigate } from 'react-router-dom';
+import { servicesAPI } from '../services/api';
 
 const Overview = () => {
-  const [overview, setOverview] = useState(null);
+  const [servicesData, setServicesData] = useState({
+    wordpress: null,
+    woocommerce: null,
+    digitalocean: null,
+    cloudflare: null
+  });
   const [loading, setLoading] = useState(true);
-  const [activeAlerts, setActiveAlerts] = useState([]);
-  const [chartData, setChartData] = useState([]);
+  const [errors, setErrors] = useState({});
+  const [lastUpdated, setLastUpdated] = useState(null);
   const hasLoadedRef = useRef(false);
+  const navigate = useNavigate();
 
-  const loadDashboardData = async () => {
-    // Prevent multiple loads using ref
-    if (hasLoadedRef.current) {
-      console.log('Already loaded, skipping...');
-      return;
-    }
-    
-    console.log('Loading dashboard data - ONCE');
-    hasLoadedRef.current = true;
-    setLoading(false);
-    
-    // Fetch real data from API
+  const fetchAllData = async () => {
     try {
-      const [overviewRes, alertsRes, metricsRes] = await Promise.all([
-        dashboardAPI.getOverview().catch(() => ({ data: { healthScore: 95, totalServices: 4, activeAlerts: 0, avgResponseTime: 234 } })),
-        alertsAPI.getAlerts({ status: 'active', limit: 5 }).catch(() => ({ data: { alerts: [] } })),
-        metricsAPI.getMetrics({ hours: 24, limit: 20 }).catch(() => ({ data: { metrics: [] } }))
+      setLoading(true);
+      
+      const results = await Promise.allSettled([
+        servicesAPI.getWordPress(),
+        servicesAPI.getWooCommerce(),
+        servicesAPI.getDigitalOcean(),
+        servicesAPI.getCloudflare()
       ]);
 
-      setOverview(overviewRes.data);
-      setActiveAlerts(alertsRes.data.alerts || []);
-      const processedMetrics = processMetricsForCharts(metricsRes.data.metrics || []);
-      setChartData(processedMetrics);
+      const newErrors = {};
+      const newData = { wordpress: null, woocommerce: null, digitalocean: null, cloudflare: null };
+
+      if (results[0].status === 'fulfilled') {
+        newData.wordpress = results[0].value.data;
+      } else {
+        newErrors.wordpress = results[0].reason?.message || 'Failed to fetch';
+      }
+
+      if (results[1].status === 'fulfilled') {
+        newData.woocommerce = results[1].value.data;
+      } else {
+        newErrors.woocommerce = results[1].reason?.message || 'Failed to fetch';
+      }
+
+      if (results[2].status === 'fulfilled') {
+        newData.digitalocean = results[2].value.data;
+      } else {
+        newErrors.digitalocean = results[2].reason?.message || 'Failed to fetch';
+      }
+
+      if (results[3].status === 'fulfilled') {
+        newData.cloudflare = results[3].value.data;
+      } else {
+        newErrors.cloudflare = results[3].reason?.message || 'Failed to fetch';
+      }
+
+      setServicesData(newData);
+      setErrors(newErrors);
+      setLastUpdated(new Date());
     } catch (error) {
-      console.error('Dashboard error:', error);
-      setOverview({ healthScore: 95, totalServices: 4, activeAlerts: 0, avgResponseTime: 234 });
-      setActiveAlerts([]);
-      setChartData([]);
+      console.error('Failed to fetch services:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    try {
-      loadDashboardData();
-    } catch (error) {
-      console.error('Failed to load dashboard:', error);
-      setLoading(false);
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      fetchAllData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency - run ONCE on mount only
+  }, []);
 
-  const processMetricsForCharts = (metricsData) => {
-    // Group by timestamp and aggregate response times
-    const grouped = {};
-    metricsData.forEach(metric => {
-      const time = new Date(metric.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      if (!grouped[time]) {
-        grouped[time] = { time, wordpress: 0, woocommerce: 0, count: {} };
-      }
-      if (metric.type === 'wordpress' && metric.data.responseTime) {
-        grouped[time].wordpress = metric.data.responseTime;
-      }
-      if (metric.type === 'woocommerce' && metric.data.responseTime) {
-        grouped[time].woocommerce = metric.data.responseTime;
-      }
-    });
-    
-    return Object.values(grouped).slice(-12); // Last 12 data points
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined) return '$0.00';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   };
 
-  const handleAcknowledgeAlert = async (alertId) => {
-    try {
-      await alertsAPI.acknowledgeAlert(alertId);
-      // Reload page to refresh data
-      window.location.reload();
-    } catch (error) {
-      console.error('Failed to acknowledge alert:', error);
-    }
+  const formatNumber = (num) => {
+    if (num === null || num === undefined) return '0';
+    if (num >= 1000000) return \`\${(num / 1000000).toFixed(1)}M\`;
+    if (num >= 1000) return \`\${(num / 1000).toFixed(1)}K\`;
+    return num.toString();
   };
 
-  const getHealthScoreColor = (score) => {
-    if (score >= 90) return 'green';
-    if (score >= 70) return 'yellow';
-    if (score >= 50) return 'orange';
-    return 'red';
+  // Calculate overall health
+  const calculateOverallHealth = () => {
+    let healthy = 0;
+    let total = 0;
+
+    if (servicesData.wordpress?.health?.status === 'healthy') healthy++;
+    if (servicesData.wordpress) total++;
+
+    if (servicesData.woocommerce?.health?.status === 'healthy') healthy++;
+    if (servicesData.woocommerce) total++;
+
+    if (servicesData.digitalocean?.droplet?.status === 'active') healthy++;
+    if (servicesData.digitalocean) total++;
+
+    if (servicesData.cloudflare?.zone?.status === 'active') healthy++;
+    if (servicesData.cloudflare) total++;
+
+    return total > 0 ? Math.round((healthy / total) * 100) : 0;
   };
 
-  const getServiceStatus = (serviceType) => {
-    const metric = overview?.metrics?.find(m => m._id?.type === serviceType);
-    return metric?.latestStatus || 'unknown';
-  };
+  const healthScore = calculateOverallHealth();
 
-  const getServiceValue = (serviceType) => {
-    const metric = overview?.metrics?.find(m => m._id?.type === serviceType);
-    const data = metric?.latestData;
-    
-    switch (serviceType) {
-      case 'wordpress':
-        return data?.responseTime ? `${data.responseTime}ms` : 'N/A';
-      case 'woocommerce':
-        return data?.productsAvailable ? '✓ Active' : 'N/A';
-      case 'digitalocean':
-        return data?.status === 'active' ? 'Active' : 'N/A';
-      case 'cloudflare':
-        return data?.status === 'active' ? 'Active' : 'N/A';
-      default:
-        return 'N/A';
-    }
-  };
-
-  const getServiceMetric = (serviceType) => {
-    switch (serviceType) {
-      case 'wordpress':
-        return 'Site Performance';
-      case 'woocommerce':
-        return 'Store Status';
-      case 'digitalocean':
-        return 'Server Status';
-      case 'cloudflare':
-        return 'DNS & CDN';
-      default:
-        return 'Status';
-    }
-  };
-
-  const getServiceResponseTime = (serviceType) => {
-    const metric = overview?.metrics?.find(m => m._id?.type === serviceType);
-    return metric?.latestData?.responseTime ? `${metric.latestData.responseTime}ms` : null;
-  };
-
-  if (loading) {
+  if (loading && !servicesData.wordpress && !servicesData.woocommerce) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading dashboard data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+          <p className="text-gray-500 mt-1">All services at a glance</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {lastUpdated && (
+            <span className="text-sm text-gray-500">
+              Updated: {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
+          <button
+            onClick={fetchAllData}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {loading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+              '🔄'
+            )}
+            Refresh All
+          </button>
+        </div>
+      </div>
+
+      {/* Overall Health Score */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">System Overview</h1>
-            <p className="text-gray-600">
-              Real-time monitoring for your e-commerce infrastructure
+            <p className="text-blue-100 text-sm">System Health Score</p>
+            <p className="text-5xl font-bold mt-1">{healthScore}%</p>
+            <p className="text-blue-100 mt-2">
+              {healthScore === 100 ? '✅ All systems operational' : 
+               healthScore >= 75 ? '⚠️ Some services need attention' :
+               '🚨 Critical issues detected'}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-500">Last updated</p>
-            <p className="text-sm font-medium text-gray-900">
-              {overview?.timestamp ? formatDistanceToNow(new Date(overview.timestamp), { addSuffix: true }) : 'Just now'}
-            </p>
+            <p className="text-blue-100 text-sm">Active Services</p>
+            <p className="text-4xl font-bold">4</p>
           </div>
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="System Health Score"
-          value={`${overview?.healthScore || 0}%`}
-          color={getHealthScoreColor(overview?.healthScore || 0)}
-          icon={
-            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-          }
-          subtitle="All systems operational"
-        />
-        
-        <StatCard
-          title="Active Alerts"
-          value={overview?.activeAlerts || 0}
-          color={overview?.activeAlerts > 0 ? 'red' : 'green'}
-          icon={
-            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-          }
-          subtitle={overview?.activeAlerts > 0 ? 'Requires attention' : 'No issues'}
-        />
-
-        <StatCard
-          title="Services Online"
-          value={`${overview?.metrics?.filter(m => m.latestStatus === 'normal').length || 0}/${overview?.metrics?.length || 4}`}
-          color="blue"
-          icon={
-            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-            </svg>
-          }
-          subtitle="Monitoring 4 services"
-        />
-
-        <StatCard
-          title="Avg Response Time"
-          value={`${Math.round(overview?.metrics?.reduce((acc, m) => acc + (m.latestData?.responseTime || 0), 0) / (overview?.metrics?.length || 1))}ms`}
-          color="purple"
-          icon={
-            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-            </svg>
-          }
-          subtitle="Across all services"
-        />
-      </div>
-
-      {/* Service Status Cards */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Service Status</h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {['wordpress', 'woocommerce', 'digitalocean', 'cloudflare'].map((service) => (
-            <ServiceStatusCard
-              key={service}
-              service={service}
-              status={getServiceStatus(service) === 'normal' ? 'healthy' : getServiceStatus(service) === 'warning' ? 'warning' : 'critical'}
-              metric={getServiceMetric(service)}
-              value={getServiceValue(service)}
-              responseTime={getServiceResponseTime(service)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Performance Chart */}
-      {chartData.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Response Time Trends (Last 24 Hours)</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="colorWp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorWc" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="time" stroke="#9ca3af" style={{ fontSize: '12px' }} />
-              <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} label={{ value: 'ms', angle: -90, position: 'insideLeft' }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-              />
-              <Area type="monotone" dataKey="wordpress" stroke="#3b82f6" fillOpacity={1} fill="url(#colorWp)" strokeWidth={2} name="WordPress" />
-              <Area type="monotone" dataKey="woocommerce" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorWc)" strokeWidth={2} name="WooCommerce" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Active Alerts */}
-      {activeAlerts.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Active Alerts</h2>
-            <span className="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">
-              {activeAlerts.length} Active
-            </span>
+      {/* Services Status Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* WordPress Card */}
+        <div 
+          onClick={() => navigate('/dashboard/wordpress')}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">🌐</span>
+            <div className={\`w-3 h-3 rounded-full \${
+              servicesData.wordpress?.health?.status === 'healthy' ? 'bg-green-500' : 
+              errors.wordpress ? 'bg-red-500' : 'bg-gray-300'
+            }\`}></div>
           </div>
+          <h3 className="font-semibold text-gray-900">WordPress</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {servicesData.wordpress?.health?.responseTime || 'N/A'}
+          </p>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Plugins</span>
+              <span className="font-medium">{servicesData.wordpress?.plugins?.active || 0} active</span>
+            </div>
+          </div>
+        </div>
+
+        {/* WooCommerce Card */}
+        <div 
+          onClick={() => navigate('/dashboard/woocommerce')}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">🛒</span>
+            <div className={\`w-3 h-3 rounded-full \${
+              servicesData.woocommerce?.health?.status === 'healthy' ? 'bg-green-500' : 
+              errors.woocommerce ? 'bg-red-500' : 'bg-gray-300'
+            }\`}></div>
+          </div>
+          <h3 className="font-semibold text-gray-900">WooCommerce</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {servicesData.woocommerce?.orders?.last24Hours || 0} orders today
+          </p>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Revenue</span>
+              <span className="font-medium text-green-600">
+                {formatCurrency(servicesData.woocommerce?.orders?.revenue24Hours)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* DigitalOcean Card */}
+        <div 
+          onClick={() => navigate('/dashboard/digitalocean')}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">☁️</span>
+            <div className={\`w-3 h-3 rounded-full \${
+              servicesData.digitalocean?.droplet?.status === 'active' ? 'bg-green-500' : 
+              errors.digitalocean ? 'bg-red-500' : 'bg-gray-300'
+            }\`}></div>
+          </div>
+          <h3 className="font-semibold text-gray-900">DigitalOcean</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {servicesData.digitalocean?.droplet?.name || 'N/A'}
+          </p>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">CPU</span>
+              <span className={\`font-medium \${
+                (servicesData.digitalocean?.metrics?.cpu || 0) > 70 ? 'text-yellow-600' : 'text-green-600'
+              }\`}>
+                {servicesData.digitalocean?.metrics?.cpu?.toFixed(1) || 0}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Cloudflare Card */}
+        <div 
+          onClick={() => navigate('/dashboard/cloudflare')}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">🔒</span>
+            <div className={\`w-3 h-3 rounded-full \${
+              servicesData.cloudflare?.zone?.status === 'active' ? 'bg-green-500' : 
+              errors.cloudflare ? 'bg-red-500' : 'bg-gray-300'
+            }\`}></div>
+          </div>
+          <h3 className="font-semibold text-gray-900">Cloudflare</h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {servicesData.cloudflare?.zone?.name || 'N/A'}
+          </p>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Requests</span>
+              <span className="font-medium">
+                {formatNumber(servicesData.cloudflare?.analytics?.requests)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* E-commerce Stats */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-900 mb-4">📦 E-commerce Today</h3>
           <div className="space-y-4">
-            {activeAlerts.map((alert) => (
-              <AlertCard
-                key={alert._id}
-                alert={alert}
-                onAcknowledge={handleAcknowledgeAlert}
-              />
-            ))}
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Orders</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {servicesData.woocommerce?.orders?.last24Hours || 0}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Revenue</span>
+              <span className="text-2xl font-bold text-green-600">
+                {formatCurrency(servicesData.woocommerce?.orders?.revenue24Hours)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Avg Order</span>
+              <span className="text-lg font-semibold text-gray-700">
+                {formatCurrency(servicesData.woocommerce?.orders?.averageOrderValue)}
+              </span>
+            </div>
           </div>
+        </div>
+
+        {/* Server Stats */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-900 mb-4">🖥️ Server Resources</h3>
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">CPU</span>
+                <span className="font-medium">{servicesData.digitalocean?.metrics?.cpu?.toFixed(1) || 0}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className={\`h-2 rounded-full \${
+                    (servicesData.digitalocean?.metrics?.cpu || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
+                  }\`}
+                  style={{ width: \`\${Math.min(servicesData.digitalocean?.metrics?.cpu || 0, 100)}%\` }}
+                ></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">Memory</span>
+                <span className="font-medium">{servicesData.digitalocean?.metrics?.memory?.toFixed(1) || 0}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className={\`h-2 rounded-full \${
+                    (servicesData.digitalocean?.metrics?.memory || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
+                  }\`}
+                  style={{ width: \`\${Math.min(servicesData.digitalocean?.metrics?.memory || 0, 100)}%\` }}
+                ></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-500">Disk</span>
+                <span className="font-medium">{servicesData.digitalocean?.metrics?.disk?.toFixed(1) || 0}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className={\`h-2 rounded-full \${
+                    (servicesData.digitalocean?.metrics?.disk || 0) > 70 ? 'bg-yellow-500' : 'bg-green-500'
+                  }\`}
+                  style={{ width: \`\${Math.min(servicesData.digitalocean?.metrics?.disk || 0, 100)}%\` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Security Stats */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-900 mb-4">🛡️ Security (24h)</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Threats Blocked</span>
+              <span className="text-2xl font-bold text-red-600">
+                {formatNumber(servicesData.cloudflare?.security?.threatsBlocked)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Total Requests</span>
+              <span className="text-2xl font-bold text-blue-600">
+                {formatNumber(servicesData.cloudflare?.analytics?.requests)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Cache Hit Rate</span>
+              <span className="text-lg font-semibold text-green-600">
+                {servicesData.cloudflare?.cache?.hitRatio?.toFixed(1) || 0}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory Alerts */}
+      {(servicesData.woocommerce?.products?.lowStock > 0 || servicesData.woocommerce?.products?.outOfStock > 0) && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <h3 className="font-semibold text-yellow-800 flex items-center gap-2">
+            <span>⚠️</span> Inventory Alerts
+          </h3>
+          <p className="text-yellow-700 mt-2">
+            {servicesData.woocommerce?.products?.lowStock || 0} products are low on stock, 
+            {servicesData.woocommerce?.products?.outOfStock || 0} are out of stock.
+          </p>
+          <button 
+            onClick={() => navigate('/dashboard/woocommerce')}
+            className="mt-3 text-sm text-yellow-800 font-medium hover:underline"
+          >
+            View WooCommerce Details →
+          </button>
         </div>
       )}
 
-      {activeAlerts.length === 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">All Clear!</h3>
-          <p className="text-gray-600">No active alerts. Your system is running smoothly.</p>
+      {/* Plugin Updates */}
+      {servicesData.wordpress?.plugins?.needsUpdate > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <h3 className="font-semibold text-blue-800 flex items-center gap-2">
+            <span>🔄</span> Plugin Updates Available
+          </h3>
+          <p className="text-blue-700 mt-2">
+            {servicesData.wordpress.plugins.needsUpdate} WordPress plugins have updates available.
+          </p>
+          <button 
+            onClick={() => navigate('/dashboard/wordpress')}
+            className="mt-3 text-sm text-blue-800 font-medium hover:underline"
+          >
+            View WordPress Details →
+          </button>
+        </div>
+      )}
+
+      {/* Errors Section */}
+      {Object.keys(errors).length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <h3 className="font-semibold text-red-800 mb-2">⚠️ Service Errors</h3>
+          <ul className="space-y-1">
+            {Object.entries(errors).map(([service, error]) => (
+              <li key={service} className="text-red-700 text-sm">
+                <strong className="capitalize">{service}:</strong> {error}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

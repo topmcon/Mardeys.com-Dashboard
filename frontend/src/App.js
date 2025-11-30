@@ -8,9 +8,10 @@ import './index.css';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
-import Services from './pages/Services';
-import ServiceDetail from './pages/ServiceDetail';
-import Analytics from './pages/Analytics';
+import WordPressPage from './pages/WordPressPage';
+import WooCommercePage from './pages/WooCommercePage';
+import DigitalOceanPage from './pages/DigitalOceanPage';
+import CloudflarePage from './pages/CloudflarePage';
 import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
 
@@ -50,27 +51,47 @@ function App() {
               element={
                 <PrivateRoute>
                   <Layout>
-                    <Services />
+                    <Overview />
                   </Layout>
                 </PrivateRoute>
               }
             />
             <Route
-              path="/dashboard/services/:service"
+              path="/dashboard/wordpress"
               element={
                 <PrivateRoute>
                   <Layout>
-                    <ServiceDetail />
+                    <WordPressPage />
                   </Layout>
                 </PrivateRoute>
               }
             />
             <Route
-              path="/dashboard/analytics"
+              path="/dashboard/woocommerce"
               element={
                 <PrivateRoute>
                   <Layout>
-                    <Analytics />
+                    <WooCommercePage />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/dashboard/digitalocean"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <DigitalOceanPage />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/dashboard/cloudflare"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <CloudflarePage />
                   </Layout>
                 </PrivateRoute>
               }

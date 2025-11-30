@@ -17,6 +17,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const metricsRoutes = require('./routes/metrics');
 const alertsRoutes = require('./routes/alerts');
 const settingsRoutes = require('./routes/settings');
+const servicesRoutes = require('./routes/services');
 
 // Import monitoring services
 const MonitoringService = require('./services/monitoringService');
@@ -74,6 +75,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/alerts', alertsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/services', servicesRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
