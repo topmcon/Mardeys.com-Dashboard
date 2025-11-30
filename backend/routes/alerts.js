@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const Alert = require('../models/Alert');
 const auth = require('../middleware/auth');
+const NotificationService = require('../services/notificationService');
 const logger = require('../utils/logger');
+
+const notificationService = new NotificationService();
 
 // Get alerts with filtering
 router.get('/', auth, async (req, res) => {
@@ -153,6 +156,91 @@ router.get('/stats/summary', auth, async (req, res) => {
   } catch (error) {
     logger.error('Alert stats error:', error);
     res.status(500).json({ error: 'Failed to fetch alert statistics' });
+  }
+});
+
+// Test notification channels
+router.post('/test-notification', auth, async (req, res) => {
+  try {
+    const { channel, severity = 'info' } = req.body;
+    
+    const testAlert = {
+      title: 'Test Notification',
+      message: 'This is a test notification from your Mardeys Dashboard. If you received this, notifications are working correctly!',
+      severity,
+      source: 'system',
+      category: 'test',
+      createdAt: new Date()
+    };
+
+    let results;
+    
+    if (channel === 'all') {
+      results = await notificationService.sendAlert(testAlert);
+    } else {
+      // Test specific channel
+      switch (channel) {
+        case 'email':
+          results = [await notificationService.sendEmailAlert(testAlert)];
+          break;
+        case 'slack':
+          results = [await notificationService.sendSlackAlert(testAlert)];
+          break;
+        case 'discord':
+          results = [await notificationService.sendDiscordAlert(testAlert)];
+          break;
+        case 'webhook':
+          results = [await notificationService.sendWebhookAlert(testAlert)];
+          break;
+        default:
+          return res.status(400).json({ error: 'Invalid channel. Use: email, slack, discord, webhook, or all' });
+      }
+    }
+
+    logger.info(`Test notification sent via ${channel}`);
+    res.json({ 
+      success: true, 
+      channel,
+      results,
+      activeChannels: notificationService.getActiveChannels()
+    });
+  } catch (error) {
+    logger.error('Test notification error:', error);
+    res.status(500).json({ error: 'Failed to send test notification', details: error.message });
+  }
+});
+
+// Get notification configuration status
+router.get('/notification-config', auth, async (req, res) => {
+  try {
+    const channels = notificationService.getActiveChannels();
+    
+    res.json({
+      configured: channels.length > 0,
+      channels: {
+        email: {
+          enabled: channels.includes('email'),
+          configured: !!process.env.EMAIL_HOST
+        },
+        slack: {
+          enabled: channels.includes('slack'),
+          configured: !!process.env.SLACK_WEBHOOK_URL
+        },
+        discord: {
+          enabled: channels.includes('discord'),
+          configured: !!process.env.DISCORD_WEBHOOK_URL
+        },
+        webhook: {
+          enabled: channels.includes('webhook'),
+          configured: !!process.env.CUSTOM_WEBHOOK_URL
+        }
+      },
+      preferences: notificationService.preferences,
+      rateLimitMinutes: notificationService.rateLimitMinutes
+    });
+  } catch (error) {
+    logger.error('Notification config fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch notification config' });
   }
 });
 

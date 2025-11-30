@@ -9,6 +9,8 @@ const PerformanceMonitor = require('./performanceMonitor');
 const SSLMonitor = require('./sslMonitor');
 const CronMonitor = require('./cronMonitor');
 const PluginMonitor = require('./pluginMonitor');
+const DatabaseMonitor = require('./databaseMonitor');
+const APIEndpointMonitor = require('./apiEndpointMonitor');
 const NotificationService = require('./notificationService');
 const logger = require('../utils/logger');
 
@@ -23,16 +25,32 @@ class MonitoringService {
     this.sslMonitor = new SSLMonitor();
     this.cronMonitor = new CronMonitor();
     this.pluginMonitor = new PluginMonitor();
+    this.dbMonitor = new DatabaseMonitor();
+    this.apiMonitor = new APIEndpointMonitor();
     this.notificationService = new NotificationService();
     this.jobs = [];
     
-    // Alert thresholds from environment
+    // Alert thresholds from environment (lowered for earlier detection)
     this.thresholds = {
-      cpu: parseFloat(process.env.ALERT_CPU_THRESHOLD) || 80,
-      memory: parseFloat(process.env.ALERT_MEMORY_THRESHOLD) || 85,
-      disk: parseFloat(process.env.ALERT_DISK_THRESHOLD) || 90,
-      responseTime: parseFloat(process.env.ALERT_RESPONSE_TIME_THRESHOLD) || 3000,
-      errorRate: parseFloat(process.env.ALERT_ERROR_RATE_THRESHOLD) || 5
+      cpu: parseFloat(process.env.ALERT_CPU_THRESHOLD) || 70,           // Was 80
+      memory: parseFloat(process.env.ALERT_MEMORY_THRESHOLD) || 75,     // Was 85
+      disk: parseFloat(process.env.ALERT_DISK_THRESHOLD) || 80,         // Was 90
+      responseTime: parseFloat(process.env.ALERT_RESPONSE_TIME_THRESHOLD) || 2000, // Was 3000
+      errorRate: parseFloat(process.env.ALERT_ERROR_RATE_THRESHOLD) || 3, // Was 5
+      // New thresholds
+      dbResponseTime: parseFloat(process.env.ALERT_DB_RESPONSE_TIME) || 100, // ms
+      apiResponseTime: parseFloat(process.env.ALERT_API_RESPONSE_TIME) || 1500, // ms
+      sslExpiryDays: parseFloat(process.env.ALERT_SSL_EXPIRY_DAYS) || 14, // days
+      consecutiveFailures: parseInt(process.env.ALERT_CONSECUTIVE_FAILURES) || 3
+    };
+    
+    // Track consecutive failures for smarter alerting
+    this.failureCounters = {
+      wordpress: 0,
+      woocommerce: 0,
+      digitalocean: 0,
+      cloudflare: 0,
+      database: 0
     };
   }
 
@@ -69,12 +87,22 @@ class MonitoringService {
       await this.runPluginChecks();
     });
 
+    // Database monitoring every 5 minutes
+    const dbCheckJob = cron.schedule('*/5 * * * *', async () => {
+      await this.runDatabaseChecks();
+    });
+
+    // API endpoint monitoring every 10 minutes
+    const apiCheckJob = cron.schedule('*/10 * * * *', async () => {
+      await this.runAPIEndpointChecks();
+    });
+
     // Cleanup old data daily at 2 AM
     const cleanupJob = cron.schedule('0 2 * * *', async () => {
       await this.cleanupOldData();
     });
 
-    this.jobs.push(healthCheckJob, metricsJob, perfCheckJob, sslCheckJob, cronCheckJob, pluginCheckJob, cleanupJob);
+    this.jobs.push(healthCheckJob, metricsJob, perfCheckJob, sslCheckJob, cronCheckJob, pluginCheckJob, dbCheckJob, apiCheckJob, cleanupJob);
 
     // Run initial health check
     this.runHealthChecks();
@@ -429,6 +457,173 @@ class MonitoringService {
       this.broadcast({ type: 'plugin_check_complete', timestamp: new Date() });
     } catch (error) {
       logger.error('Plugin checks failed:', error);
+    }
+  }
+
+  async runDatabaseChecks() {
+    try {
+      logger.info('Running database health checks...');
+      const dbHealth = await this.dbMonitor.checkHealth();
+      
+      // Save database metrics
+      await this.saveMetric({
+        type: 'database',
+        category: 'health',
+        name: 'is_healthy',
+        value: dbHealth.isHealthy ? 1 : 0,
+        status: dbHealth.isHealthy ? 'normal' : 'critical'
+      });
+
+      await this.saveMetric({
+        type: 'database',
+        category: 'performance',
+        name: 'response_time',
+        value: dbHealth.responseTime,
+        unit: 'ms',
+        status: dbHealth.responseTime < this.thresholds.dbResponseTime ? 'normal' : 
+                dbHealth.responseTime < this.thresholds.dbResponseTime * 2 ? 'warning' : 'critical'
+      });
+
+      // Alert on database issues
+      if (!dbHealth.isHealthy) {
+        this.failureCounters.database++;
+        
+        if (this.failureCounters.database >= this.thresholds.consecutiveFailures) {
+          await this.createAlert({
+            title: 'Database Connection Failed',
+            message: `MongoDB connection is unhealthy. State: ${dbHealth.state}. Error: ${dbHealth.error || 'Unknown'}`,
+            severity: 'critical',
+            source: 'database',
+            category: 'availability'
+          });
+        }
+      } else {
+        this.failureCounters.database = 0;
+        
+        // Alert on slow database response
+        if (dbHealth.responseTime > this.thresholds.dbResponseTime * 2) {
+          await this.createAlert({
+            title: 'Database Response Slow',
+            message: `MongoDB response time is ${dbHealth.responseTime}ms (threshold: ${this.thresholds.dbResponseTime}ms)`,
+            severity: 'warning',
+            source: 'database',
+            category: 'performance',
+            metricValue: dbHealth.responseTime,
+            threshold: this.thresholds.dbResponseTime
+          });
+        }
+      }
+
+      // Get and store database stats periodically
+      const stats = await this.dbMonitor.getStats();
+      if (stats) {
+        await this.saveMetric({
+          type: 'database',
+          category: 'storage',
+          name: 'data_size_mb',
+          value: parseFloat(stats.dataSizeMB),
+          unit: 'MB'
+        });
+
+        await this.saveMetric({
+          type: 'database',
+          category: 'storage',
+          name: 'collections_count',
+          value: stats.collections
+        });
+
+        await this.saveMetric({
+          type: 'database',
+          category: 'storage',
+          name: 'documents_count',
+          value: stats.objects
+        });
+      }
+
+      this.broadcast({ 
+        type: 'database_check_complete', 
+        data: dbHealth,
+        timestamp: new Date() 
+      });
+    } catch (error) {
+      logger.error('Database checks failed:', error);
+    }
+  }
+
+  async runAPIEndpointChecks() {
+    try {
+      logger.info('Running API endpoint checks...');
+      const results = await this.apiMonitor.checkAllEndpoints();
+      
+      // Save metrics for each endpoint
+      for (const endpoint of results.endpoints) {
+        await this.saveMetric({
+          type: 'api',
+          category: endpoint.category,
+          name: `${endpoint.name.toLowerCase().replace(/\s+/g, '_')}_status`,
+          value: endpoint.isHealthy ? 1 : 0,
+          status: endpoint.isHealthy ? 'normal' : 'critical'
+        });
+
+        await this.saveMetric({
+          type: 'api',
+          category: endpoint.category,
+          name: `${endpoint.name.toLowerCase().replace(/\s+/g, '_')}_response_time`,
+          value: endpoint.responseTime,
+          unit: 'ms',
+          status: endpoint.responseTime < this.thresholds.apiResponseTime ? 'normal' : 'warning'
+        });
+
+        // Alert on endpoint failures
+        if (!endpoint.isHealthy) {
+          await this.createAlert({
+            title: `API Endpoint Down: ${endpoint.name}`,
+            message: `Endpoint ${endpoint.url} returned ${endpoint.statusCode || 'error'} (expected: ${endpoint.expectedStatus}). ${endpoint.error || ''}`,
+            severity: endpoint.category === 'frontend' || endpoint.category === 'api' ? 'critical' : 'warning',
+            source: endpoint.category,
+            category: 'availability',
+            metricValue: endpoint.statusCode,
+            threshold: endpoint.expectedStatus
+          });
+        }
+
+        // Alert on slow endpoints
+        if (endpoint.isHealthy && endpoint.responseTime > this.thresholds.apiResponseTime) {
+          await this.createAlert({
+            title: `Slow API Response: ${endpoint.name}`,
+            message: `Endpoint ${endpoint.url} responded in ${endpoint.responseTime}ms (threshold: ${this.thresholds.apiResponseTime}ms)`,
+            severity: 'warning',
+            source: endpoint.category,
+            category: 'performance',
+            metricValue: endpoint.responseTime,
+            threshold: this.thresholds.apiResponseTime
+          });
+        }
+      }
+
+      // Save summary metrics
+      await this.saveMetric({
+        type: 'api',
+        category: 'summary',
+        name: 'endpoints_healthy',
+        value: results.summary.healthy
+      });
+
+      await this.saveMetric({
+        type: 'api',
+        category: 'summary',
+        name: 'avg_response_time',
+        value: results.summary.avgResponseTime,
+        unit: 'ms'
+      });
+
+      this.broadcast({ 
+        type: 'api_check_complete', 
+        data: results.summary,
+        timestamp: new Date() 
+      });
+    } catch (error) {
+      logger.error('API endpoint checks failed:', error);
     }
   }
 

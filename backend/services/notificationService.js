@@ -6,6 +6,8 @@ class NotificationService {
   constructor() {
     this.emailEnabled = !!process.env.EMAIL_HOST;
     this.slackEnabled = !!process.env.SLACK_WEBHOOK_URL;
+    this.webhookEnabled = !!process.env.CUSTOM_WEBHOOK_URL;
+    this.discordEnabled = !!process.env.DISCORD_WEBHOOK_URL;
     
     // Email transporter
     if (this.emailEnabled) {
@@ -19,39 +21,114 @@ class NotificationService {
         }
       });
     }
+
+    // Notification preferences (which severity levels to notify for each channel)
+    this.preferences = {
+      email: (process.env.EMAIL_NOTIFY_SEVERITY || 'warning,error,critical').split(','),
+      slack: (process.env.SLACK_NOTIFY_SEVERITY || 'warning,error,critical').split(','),
+      discord: (process.env.DISCORD_NOTIFY_SEVERITY || 'error,critical').split(','),
+      webhook: (process.env.WEBHOOK_NOTIFY_SEVERITY || 'critical').split(',')
+    };
+
+    // Rate limiting: track recent notifications to prevent spam
+    this.recentNotifications = new Map();
+    this.rateLimitMinutes = parseInt(process.env.NOTIFICATION_RATE_LIMIT_MINUTES) || 15;
+  }
+
+  /**
+   * Check if we should send notification based on severity preferences
+   */
+  shouldNotify(channel, severity) {
+    return this.preferences[channel]?.includes(severity);
+  }
+
+  /**
+   * Check rate limiting - prevent duplicate notifications within time window
+   */
+  isRateLimited(alertKey) {
+    const lastSent = this.recentNotifications.get(alertKey);
+    if (!lastSent) return false;
+    
+    const timeSince = Date.now() - lastSent;
+    return timeSince < this.rateLimitMinutes * 60 * 1000;
+  }
+
+  /**
+   * Mark notification as sent for rate limiting
+   */
+  markNotificationSent(alertKey) {
+    this.recentNotifications.set(alertKey, Date.now());
+    
+    // Cleanup old entries
+    const cutoff = Date.now() - this.rateLimitMinutes * 60 * 1000;
+    for (const [key, time] of this.recentNotifications) {
+      if (time < cutoff) {
+        this.recentNotifications.delete(key);
+      }
+    }
   }
 
   getActiveChannels() {
     const channels = [];
     if (this.emailEnabled) channels.push('email');
     if (this.slackEnabled) channels.push('slack');
+    if (this.discordEnabled) channels.push('discord');
+    if (this.webhookEnabled) channels.push('webhook');
     return channels;
   }
 
   async sendAlert(alert) {
+    // Rate limiting check
+    const alertKey = `${alert.source}:${alert.title}`;
+    if (this.isRateLimited(alertKey)) {
+      logger.info(`Rate limited notification for: ${alertKey}`);
+      return [{ status: 'skipped', reason: 'rate_limited' }];
+    }
+
     const notifications = [];
 
-    // Send email notification
-    if (this.emailEnabled) {
+    // Send email notification (if enabled and severity matches preference)
+    if (this.emailEnabled && this.shouldNotify('email', alert.severity)) {
       notifications.push(this.sendEmailAlert(alert));
     }
 
     // Send Slack notification
-    if (this.slackEnabled) {
+    if (this.slackEnabled && this.shouldNotify('slack', alert.severity)) {
       notifications.push(this.sendSlackAlert(alert));
+    }
+
+    // Send Discord notification
+    if (this.discordEnabled && this.shouldNotify('discord', alert.severity)) {
+      notifications.push(this.sendDiscordAlert(alert));
+    }
+
+    // Send custom webhook notification
+    if (this.webhookEnabled && this.shouldNotify('webhook', alert.severity)) {
+      notifications.push(this.sendWebhookAlert(alert));
+    }
+
+    if (notifications.length === 0) {
+      logger.debug(`No notification channels configured for severity: ${alert.severity}`);
+      return [];
     }
 
     // Wait for all notifications to send
     const results = await Promise.allSettled(notifications);
     
+    // Mark as sent for rate limiting
+    this.markNotificationSent(alertKey);
+    
     // Log results
-    results.forEach((result, index) => {
-      const channel = this.getActiveChannels()[index];
+    const channelNames = this.getActiveChannels();
+    let channelIndex = 0;
+    results.forEach((result) => {
+      const channel = channelNames[channelIndex] || 'unknown';
       if (result.status === 'fulfilled') {
         logger.info(`Alert sent via ${channel}: ${alert.title}`);
       } else {
         logger.error(`Failed to send alert via ${channel}:`, result.reason);
       }
+      channelIndex++;
     });
 
     return results;
@@ -210,6 +287,104 @@ Time: ${new Date(alert.createdAt).toLocaleString()}
       return { success: true, channel: 'slack' };
     } catch (error) {
       logger.error('Slack notification failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send Discord webhook notification
+   */
+  async sendDiscordAlert(alert) {
+    try {
+      const severityColors = {
+        info: 0x0ea5e9,
+        warning: 0xf59e0b,
+        error: 0xef4444,
+        critical: 0xdc2626
+      };
+
+      const severityEmojis = {
+        info: 'ℹ️',
+        warning: '⚠️',
+        error: '❌',
+        critical: '🚨'
+      };
+
+      const payload = {
+        embeds: [{
+          title: `${severityEmojis[alert.severity] || '🔔'} ${alert.title}`,
+          description: alert.message,
+          color: severityColors[alert.severity] || 0x6b7280,
+          fields: [
+            { name: 'Severity', value: alert.severity.toUpperCase(), inline: true },
+            { name: 'Source', value: alert.source, inline: true }
+          ],
+          timestamp: new Date(alert.createdAt).toISOString(),
+          footer: { text: 'Mardeys Dashboard Monitoring' }
+        }]
+      };
+
+      if (alert.metricValue) {
+        payload.embeds[0].fields.push({ 
+          name: 'Current Value', 
+          value: alert.metricValue.toString(), 
+          inline: true 
+        });
+      }
+
+      if (alert.threshold) {
+        payload.embeds[0].fields.push({ 
+          name: 'Threshold', 
+          value: alert.threshold.toString(), 
+          inline: true 
+        });
+      }
+
+      await axios.post(process.env.DISCORD_WEBHOOK_URL, payload);
+      return { success: true, channel: 'discord' };
+    } catch (error) {
+      logger.error('Discord notification failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send custom webhook notification (generic JSON payload)
+   */
+  async sendWebhookAlert(alert) {
+    try {
+      const payload = {
+        event: 'alert',
+        alert: {
+          id: alert._id,
+          title: alert.title,
+          message: alert.message,
+          severity: alert.severity,
+          source: alert.source,
+          category: alert.category,
+          metricValue: alert.metricValue,
+          threshold: alert.threshold,
+          timestamp: alert.createdAt
+        },
+        metadata: {
+          dashboard: 'Mardeys Dashboard',
+          environment: process.env.NODE_ENV || 'production'
+        }
+      };
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      // Support optional auth header
+      if (process.env.WEBHOOK_AUTH_HEADER) {
+        headers['Authorization'] = process.env.WEBHOOK_AUTH_HEADER;
+      }
+
+      await axios.post(process.env.CUSTOM_WEBHOOK_URL, payload, { headers });
+      return { success: true, channel: 'webhook' };
+    } catch (error) {
+      logger.error('Webhook notification failed:', error);
       throw error;
     }
   }
