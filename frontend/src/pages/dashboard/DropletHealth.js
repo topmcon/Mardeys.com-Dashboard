@@ -1,36 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { servicesAPI } from '../../services/api';
+import { servicesAPI, metricsAPI } from '../../services/api';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import MetricCard from '../../components/ui/MetricCard';
 import GlassCard from '../../components/ui/GlassCard';
 import StatusBadge from '../../components/ui/StatusBadge';
 import ProgressGauge from '../../components/ui/ProgressGauge';
 import AlertBanner from '../../components/ui/AlertBanner';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const DropletHealth = () => {
   const [droplet, setDroplet] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [resourceHistory, setResourceHistory] = useState([]);
   const hasLoadedRef = useRef(false);
-
-  // Simulated historical data (in real app, fetch from monitoring service)
-  const [resourceHistory] = useState([
-    { time: '00:00', cpu: 15, ram: 45, disk: 62 },
-    { time: '04:00', cpu: 8, ram: 42, disk: 62 },
-    { time: '08:00', cpu: 35, ram: 58, disk: 62 },
-    { time: '12:00', cpu: 62, ram: 71, disk: 63 },
-    { time: '16:00', cpu: 45, ram: 65, disk: 63 },
-    { time: '20:00', cpu: 28, ram: 55, disk: 63 },
-    { time: 'Now', cpu: 22, ram: 48, disk: 63 },
-  ]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await servicesAPI.getDigitalOcean();
-      setDroplet(response.data);
-      setLastUpdated(new Date());
+      const [doResponse, chartResponse] = await Promise.all([
+        servicesAPI.getDigitalOcean(),
+        metricsAPI.getChart('digitalocean', '24h').catch(() => ({ data: { data: [] } }))
+      ]);
+      
+      setDroplet(doResponse.data);
+      
+      // Format chart data
+      if (chartResponse.data?.data?.length > 0) {
+        const formatted = chartResponse.data.data.map(point => ({
+          time: point.timeLabel,
+          cpu: point.cpu_usage || 0,
+          ram: point.memory_usage || 0,
+          disk: point.disk_usage || 0
+        }));
+        setResourceHistory(formatted);
+      } else {
+        // Fallback to current metrics if no history yet
+        const metrics = doResponse.data?.metrics || {};
+        setResourceHistory([
+          { time: 'Now', cpu: metrics.cpu || 0, ram: metrics.memory || 0, disk: metrics.disk || 0 }
+        ]);
+      }
     } catch (error) {
       console.error('Failed to fetch droplet data:', error);
     } finally {
@@ -52,11 +61,14 @@ const DropletHealth = () => {
     return `${days}d ${remainingHours}h`;
   };
 
-  // Simulated real-time metrics (in real app, these would come from monitoring agent)
-  const cpuUsage = 22;
-  const ramUsage = 48;
-  const diskUsage = 63;
-  const loadAvg = [0.45, 0.52, 0.48];
+  // Use real metrics from API
+  const cpuUsage = droplet?.metrics?.cpu || 0;
+  const ramUsage = droplet?.metrics?.memory || 0;
+  const diskUsage = droplet?.metrics?.disk || 0;
+  // Load average calculated from CPU (rough approximation)
+  const loadAvg = [cpuUsage / 100 * (droplet?.specs?.vcpus || 1), 
+                   cpuUsage / 100 * (droplet?.specs?.vcpus || 1) * 1.1, 
+                   cpuUsage / 100 * (droplet?.specs?.vcpus || 1) * 0.95];
 
   const getUsageStatus = (value, warn = 70, danger = 90) => {
     if (value >= danger) return 'danger';

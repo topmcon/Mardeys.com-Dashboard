@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { servicesAPI } from '../../services/api';
+import { servicesAPI, metricsAPI } from '../../services/api';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import MetricCard from '../../components/ui/MetricCard';
 import GlassCard from '../../components/ui/GlassCard';
@@ -12,30 +12,42 @@ const WebsiteHealth = () => {
   const [wordpress, setWordpress] = useState(null);
   const [cloudflare, setCloudflare] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [responseHistory, setResponseHistory] = useState([]);
+  const [uptimeData, setUptimeData] = useState(null);
   const hasLoadedRef = useRef(false);
-
-  // Simulated response time history (in real app, fetch from backend)
-  const [responseHistory] = useState([
-    { time: '00:00', responseTime: 450, errors: 0 },
-    { time: '04:00', responseTime: 380, errors: 0 },
-    { time: '08:00', responseTime: 520, errors: 2 },
-    { time: '12:00', responseTime: 610, errors: 1 },
-    { time: '16:00', responseTime: 480, errors: 0 },
-    { time: '20:00', responseTime: 420, errors: 0 },
-    { time: 'Now', responseTime: wordpress?.health?.responseTime || 450, errors: 0 },
-  ]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [wpRes, cfRes] = await Promise.all([
+      const [wpRes, cfRes, chartRes, summaryRes] = await Promise.all([
         servicesAPI.getWordPress(),
-        servicesAPI.getCloudflare()
+        servicesAPI.getCloudflare(),
+        metricsAPI.getChart('wordpress', '24h').catch(() => ({ data: { data: [] } })),
+        metricsAPI.getSummary('24h').catch(() => ({ data: { summary: {} } }))
       ]);
+      
       setWordpress(wpRes.data);
       setCloudflare(cfRes.data);
-      setLastUpdated(new Date());
+      
+      // Format response time history chart
+      if (chartRes.data?.data?.length > 0) {
+        const formatted = chartRes.data.data.map(point => ({
+          time: point.timeLabel,
+          responseTime: point.response_time || 0,
+          errors: point.is_up !== undefined ? (point.is_up < 1 ? 1 : 0) : 0
+        }));
+        setResponseHistory(formatted);
+      } else {
+        // Fallback to current metric
+        setResponseHistory([
+          { time: 'Now', responseTime: wpRes.data?.health?.responseTime || 0, errors: 0 }
+        ]);
+      }
+      
+      // Set uptime data
+      if (summaryRes.data?.summary?.wordpress?.uptime) {
+        setUptimeData(summaryRes.data.summary.wordpress.uptime);
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -66,8 +78,8 @@ const WebsiteHealth = () => {
     return (bytes / 1024).toFixed(2) + ' KB';
   };
 
-  // Calculate uptime (simulated - in real app, fetch from monitoring service)
-  const uptime = wordpress?.health?.isUp ? 99.99 : 95.0;
+  // Calculate uptime from real data
+  const uptime = uptimeData?.percentage ? parseFloat(uptimeData.percentage) : (wordpress?.health?.isUp ? 100 : 0);
   const responseTime = wordpress?.health?.responseTime || 0;
   
   const getResponseStatus = (time) => {

@@ -21,6 +21,7 @@ const servicesRoutes = require('./routes/services');
 
 // Import monitoring services
 const MonitoringService = require('./services/monitoringService');
+const metricsCollector = require('./jobs/metricsCollector');
 const logger = require('./utils/logger');
 
 // Initialize Express app
@@ -114,12 +115,16 @@ app.use((req, res) => {
 const monitoringService = new MonitoringService(wss);
 monitoringService.start();
 
+// Start metrics collector (collects every 5 minutes)
+metricsCollector.start(5 * 60 * 1000);
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM signal received: closing HTTP server');
   server.close(() => {
     logger.info('HTTP server closed');
     monitoringService.stop();
+    metricsCollector.stop();
     mongoose.connection.close(false, () => {
       logger.info('MongoDB connection closed');
       process.exit(0);

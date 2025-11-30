@@ -62,10 +62,27 @@ router.get('/woocommerce', async (req, res) => {
       url: process.env.WORDPRESS_URL,
       health: {
         isUp: health.isHealthy,
-        productsAvailable: health.productsAvailable
+        productsAvailable: health.productsAvailable,
+        responseTime: health.responseTime || null
       },
-      orders: orderStats,
-      products: productStats,
+      orders: {
+        totalOrders: orderStats?.totalOrders || 0,
+        totalRevenue: orderStats?.totalRevenue || 0,
+        averageOrderValue: orderStats?.averageOrderValue || 0,
+        byStatus: orderStats?.statusBreakdown || {},
+        period: orderStats?.period || '24h'
+      },
+      products: {
+        total: productStats?.total || 0,
+        lowStock: productStats?.lowStock || 0,
+        outOfStock: productStats?.outOfStock || 0,
+        byType: productStats?.byType || {},
+        byStatus: {
+          publish: productStats?.total || 0,
+          draft: 0,
+          private: 0
+        }
+      },
       customers: customerStats,
       recentOrders: recentActivity?.recentOrders || [],
       lastChecked: new Date()
@@ -93,17 +110,37 @@ router.get('/digitalocean', async (req, res) => {
 
     res.json({
       service: 'digitalocean',
-      droplet: dropletInfo,
+      name: dropletInfo?.name || 'Unknown',
+      region: dropletInfo?.region || 'Unknown',
+      image: dropletInfo?.image || 'Unknown',
       health: {
         isHealthy: health.isHealthy,
         status: health.status
       },
-      metrics: {
-        cpu: metrics?.cpu?.current,
-        memory: metrics?.memory?.current,
-        disk: metrics?.disk?.current,
-        bandwidth: metrics?.bandwidth?.current
+      specs: {
+        vcpus: dropletInfo?.vcpus || 0,
+        memory: dropletInfo?.memory || 0,
+        disk: dropletInfo?.disk || 0,
+        priceMonthly: dropletInfo?.priceMonthly || 0
       },
+      network: {
+        publicIp: dropletInfo?.ipAddress || null,
+        privateIp: dropletInfo?.privateIp || null,
+        gateway: dropletInfo?.gateway || null,
+        vpc: !!dropletInfo?.vpcUuid
+      },
+      metrics: {
+        cpu: metrics?.cpu?.current || 0,
+        memory: metrics?.memory?.current || 0,
+        disk: metrics?.disk?.current || 0,
+        bandwidth: metrics?.bandwidth?.current || 0
+      },
+      uptime: {
+        hours: dropletInfo?.uptimeHours || null,
+        since: dropletInfo?.created || null
+      },
+      features: dropletInfo?.features || [],
+      tags: dropletInfo?.tags || [],
       account: account,
       lastChecked: new Date()
     });

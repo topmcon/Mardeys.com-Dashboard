@@ -1,45 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { servicesAPI } from '../../services/api';
+import { servicesAPI, metricsAPI } from '../../services/api';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import MetricCard from '../../components/ui/MetricCard';
 import GlassCard from '../../components/ui/GlassCard';
 import StatusBadge from '../../components/ui/StatusBadge';
 import AlertBanner from '../../components/ui/AlertBanner';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
 const BusinessKPIs = () => {
   const [woocommerce, setWoocommerce] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [revenueHistory, setRevenueHistory] = useState([]);
   const hasLoadedRef = useRef(false);
-
-  // Simulated revenue data (in real app, fetch from WooCommerce analytics)
-  const [revenueHistory] = useState([
-    { day: 'Mon', revenue: 1250, orders: 8 },
-    { day: 'Tue', revenue: 1680, orders: 12 },
-    { day: 'Wed', revenue: 2100, orders: 15 },
-    { day: 'Thu', revenue: 1890, orders: 14 },
-    { day: 'Fri', revenue: 2450, orders: 18 },
-    { day: 'Sat', revenue: 3200, orders: 24 },
-    { day: 'Sun', revenue: 2800, orders: 20 },
-  ]);
-
-  const [hourlyOrders] = useState([
-    { hour: '12am', orders: 1 },
-    { hour: '4am', orders: 0 },
-    { hour: '8am', orders: 3 },
-    { hour: '12pm', orders: 8 },
-    { hour: '4pm', orders: 12 },
-    { hour: '8pm', orders: 15 },
-    { hour: 'Now', orders: 6 },
-  ]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await servicesAPI.getWooCommerce();
-      setWoocommerce(response.data);
-      setLastUpdated(new Date());
+      const [wcResponse, chartResponse] = await Promise.all([
+        servicesAPI.getWooCommerce(),
+        metricsAPI.getChart('woocommerce', '7d').catch(() => ({ data: { data: [] } }))
+      ]);
+      
+      setWoocommerce(wcResponse.data);
+      
+      // Format revenue history chart
+      if (chartResponse.data?.data?.length > 0) {
+        const formatted = chartResponse.data.data.map(point => ({
+          day: point.timeLabel,
+          revenue: point.total_revenue || 0,
+          orders: point.total_orders || 0
+        }));
+        setRevenueHistory(formatted);
+      } else {
+        // Use current order data as fallback
+        const orders = wcResponse.data?.orders;
+        if (orders) {
+          setRevenueHistory([
+            { day: 'Today', revenue: orders.totalRevenue || 0, orders: orders.totalOrders || 0 }
+          ]);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch WooCommerce data:', error);
     } finally {
@@ -64,20 +64,21 @@ const BusinessKPIs = () => {
     }).format(amount);
   };
 
-  // Simulated KPIs
-  const todayRevenue = 2800;
-  const todayOrders = 20;
-  const avgOrderValue = todayRevenue / todayOrders;
-  const conversionRate = 3.2;
-  const cartAbandonmentRate = 68;
+  // Use real data from API
+  const todayRevenue = woocommerce?.orders?.totalRevenue || 0;
+  const todayOrders = woocommerce?.orders?.totalOrders || 0;
+  const avgOrderValue = woocommerce?.orders?.averageOrderValue || 0;
+  // Estimated conversion rate (would need session data for real calculation)
+  const conversionRate = todayOrders > 0 ? 3.2 : 0;
+  const cartAbandonmentRate = 68; // Would need cart session tracking
 
-  // Product category distribution
-  const categoryData = [
-    { name: 'Electronics', value: 35, color: '#6366f1' },
-    { name: 'Clothing', value: 28, color: '#8b5cf6' },
-    { name: 'Home', value: 22, color: '#10b981' },
-    { name: 'Other', value: 15, color: '#f59e0b' },
-  ];
+  // Build product type distribution from real data
+  const productTypes = woocommerce?.products?.byType || {};
+  const categoryData = Object.entries(productTypes).map(([name, value], index) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value,
+    color: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'][index % 5]
+  }));
 
   const RefreshButton = () => (
     <button

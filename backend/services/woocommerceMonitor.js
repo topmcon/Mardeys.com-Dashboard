@@ -62,7 +62,7 @@ class WooCommerceMonitor {
 
   async getProductStats() {
     try {
-      const [productsResponse, lowStockResponse] = await Promise.all([
+      const [productsResponse, lowStockResponse, simpleResponse, variableResponse] = await Promise.all([
         axios.get(`${this.baseUrl}/wc/v3/products`, {
           ...this.getAuthConfig(),
           params: { per_page: 1 }
@@ -73,11 +73,21 @@ class WooCommerceMonitor {
             stock_status: 'onbackorder',
             per_page: 100
           }
-        })
+        }),
+        axios.get(`${this.baseUrl}/wc/v3/products`, {
+          ...this.getAuthConfig(),
+          params: { type: 'simple', per_page: 1 }
+        }).catch(() => ({ headers: { 'x-wp-total': '0' } })),
+        axios.get(`${this.baseUrl}/wc/v3/products`, {
+          ...this.getAuthConfig(),
+          params: { type: 'variable', per_page: 1 }
+        }).catch(() => ({ headers: { 'x-wp-total': '0' } }))
       ]);
 
       const totalProducts = parseInt(productsResponse.headers['x-wp-total'] || 0);
       const lowStockProducts = lowStockResponse.data;
+      const simpleCount = parseInt(simpleResponse.headers['x-wp-total'] || 0);
+      const variableCount = parseInt(variableResponse.headers['x-wp-total'] || 0);
 
       // Get out of stock
       const outOfStockResponse = await axios.get(`${this.baseUrl}/wc/v3/products`, {
@@ -92,6 +102,11 @@ class WooCommerceMonitor {
         total: totalProducts,
         lowStock: lowStockProducts.length,
         outOfStock: outOfStockResponse.data.length,
+        byType: {
+          simple: simpleCount,
+          variable: variableCount,
+          other: Math.max(0, totalProducts - simpleCount - variableCount)
+        },
         lowStockItems: lowStockProducts.slice(0, 10).map(p => ({
           id: p.id,
           name: p.name,

@@ -55,7 +55,9 @@ export const dashboardAPI = {
 export const metricsAPI = {
   getMetrics: (params) => api.get('/metrics', { params }),
   getLatest: (type) => api.get('/metrics/latest', { params: { type } }),
-  getStats: (params) => api.get('/metrics/stats', { params })
+  getStats: (params) => api.get('/metrics/stats', { params }),
+  getChart: (type, period = '24h') => api.get(`/metrics/chart/${type}`, { params: { period } }),
+  getSummary: (period = '24h') => api.get('/metrics/summary', { params: { period } })
 };
 
 // Alerts API
