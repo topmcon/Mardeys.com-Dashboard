@@ -39,7 +39,12 @@ const Overview = () => {
   };
 
   useEffect(() => {
-    loadDashboardData();
+    try {
+      loadDashboardData();
+    } catch (error) {
+      console.error('Failed to load dashboard:', error);
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency - run ONCE on mount only
 
