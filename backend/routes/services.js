@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
+// Auth removed for demo mode - services are read-only monitoring data
 const logger = require('../utils/logger');
 
 // Import monitors
@@ -16,7 +16,7 @@ const doMonitor = new DigitalOceanMonitor();
 const cfMonitor = new CloudflareMonitor();
 
 // ============== WORDPRESS ==============
-router.get('/wordpress', auth, async (req, res) => {
+router.get('/wordpress', async (req, res) => {
   try {
     const [health, pluginStatus] = await Promise.all([
       wpMonitor.checkHealth(),
@@ -47,7 +47,7 @@ router.get('/wordpress', auth, async (req, res) => {
 });
 
 // ============== WOOCOMMERCE ==============
-router.get('/woocommerce', auth, async (req, res) => {
+router.get('/woocommerce', async (req, res) => {
   try {
     const [health, orderStats, productStats, customerStats, recentActivity] = await Promise.all([
       wcMonitor.checkHealth(),
@@ -83,7 +83,7 @@ router.get('/woocommerce', auth, async (req, res) => {
 });
 
 // ============== DIGITALOCEAN ==============
-router.get('/digitalocean', auth, async (req, res) => {
+router.get('/digitalocean', async (req, res) => {
   try {
     const [dropletInfo, health, metrics, billing] = await Promise.all([
       doMonitor.getDropletInfo(),
@@ -119,7 +119,7 @@ router.get('/digitalocean', auth, async (req, res) => {
 });
 
 // ============== CLOUDFLARE ==============
-router.get('/cloudflare', auth, async (req, res) => {
+router.get('/cloudflare', async (req, res) => {
   try {
     const [health, analytics, cacheStats, dnsRecords, securityEvents] = await Promise.all([
       cfMonitor.checkHealth(),
