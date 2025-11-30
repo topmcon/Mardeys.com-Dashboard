@@ -7,7 +7,12 @@ import './index.css';
 
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
+import Overview from './pages/Overview';
+import Services from './pages/Services';
+import ServiceDetail from './pages/ServiceDetail';
+import Analytics from './pages/Analytics';
+import Alerts from './pages/Alerts';
+import Settings from './pages/Settings';
 
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -36,8 +41,14 @@ function App() {
                 <PrivateRoute>
                   <Layout>
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="*" element={<Navigate to="/" />} />
+                      <Route path="/" element={<Navigate to="/dashboard" />} />
+                      <Route path="/dashboard" element={<Overview />} />
+                      <Route path="/dashboard/services" element={<Services />} />
+                      <Route path="/dashboard/services/:service" element={<ServiceDetail />} />
+                      <Route path="/dashboard/analytics" element={<Analytics />} />
+                      <Route path="/dashboard/alerts" element={<Alerts />} />
+                      <Route path="/dashboard/settings" element={<Settings />} />
+                      <Route path="*" element={<Navigate to="/dashboard" />} />
                     </Routes>
                   </Layout>
                 </PrivateRoute>
