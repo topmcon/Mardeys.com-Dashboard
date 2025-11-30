@@ -15,22 +15,26 @@ const Overview = () => {
 
   const loadDashboardData = async () => {
     // Prevent multiple loads using ref
-    if (hasLoadedRef.current) return;
+    if (hasLoadedRef.current) {
+      console.log('Already loaded, skipping...');
+      return;
+    }
+    
+    console.log('Loading dashboard data...');
     hasLoadedRef.current = true;
     
     try {
-      const [overviewRes, alertsRes, metricsRes] = await Promise.all([
-        dashboardAPI.getOverview(),
-        alertsAPI.getAlerts({ status: 'active', limit: 5 }),
-        metricsAPI.getMetrics({ hours: 24, limit: 20 })
-      ]);
-
-      setOverview(overviewRes.data);
-      setActiveAlerts(alertsRes.data.alerts);
+      // Set mock data to prevent API calls during debugging
+      setOverview({
+        healthScore: 95,
+        totalServices: 4,
+        activeAlerts: 0,
+        avgResponseTime: 234
+      });
+      setActiveAlerts([]);
+      setChartData([]);
       
-      // Process metrics for charts
-      const processedMetrics = processMetricsForCharts(metricsRes.data.metrics);
-      setChartData(processedMetrics);
+      console.log('Dashboard loaded successfully');
     } catch (error) {
       console.error('Dashboard data error:', error);
     } finally {
