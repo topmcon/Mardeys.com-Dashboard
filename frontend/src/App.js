@@ -34,26 +34,69 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
-            <Route path="/login" element={<Navigate to="/" />} />
+            <Route path="/login" element={<Navigate to="/dashboard" replace />} />
             <Route
-              path="/*"
+              path="/dashboard"
               element={
                 <PrivateRoute>
                   <Layout>
-                    <Routes>
-                      <Route path="/" element={<Navigate to="/dashboard" />} />
-                      <Route path="/dashboard" element={<Overview />} />
-                      <Route path="/dashboard/services" element={<Services />} />
-                      <Route path="/dashboard/services/:service" element={<ServiceDetail />} />
-                      <Route path="/dashboard/analytics" element={<Analytics />} />
-                      <Route path="/dashboard/alerts" element={<Alerts />} />
-                      <Route path="/dashboard/settings" element={<Settings />} />
-                      <Route path="*" element={<Navigate to="/dashboard" />} />
-                    </Routes>
+                    <Overview />
                   </Layout>
                 </PrivateRoute>
               }
             />
+            <Route
+              path="/dashboard/services"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <Services />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/dashboard/services/:service"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <ServiceDetail />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/dashboard/analytics"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <Analytics />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/dashboard/alerts"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <Alerts />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/dashboard/settings"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <Settings />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
           <ToastContainer
             position="top-right"

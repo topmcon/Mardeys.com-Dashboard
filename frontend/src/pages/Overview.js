@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { dashboardAPI, metricsAPI, alertsAPI, connectWebSocket } from '../services/api';
+import { dashboardAPI, metricsAPI, alertsAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatDistanceToNow } from 'date-fns';
@@ -36,26 +36,19 @@ const Overview = () => {
     }
   }, []);
 
-  const handleWebSocketMessage = useCallback((message) => {
-    if (message.type === 'new_alert') {
-      toast.warning(`New Alert: ${message.data.title}`);
-      loadDashboardData();
-    } else if (message.type === 'health_check' || message.type === 'metrics_update') {
-      loadDashboardData();
-    }
-  }, [loadDashboardData]);
-
   useEffect(() => {
     loadDashboardData();
     
-    const ws = connectWebSocket(handleWebSocketMessage);
-    const interval = setInterval(loadDashboardData, 5 * 60 * 1000);
+    // Disable WebSocket to prevent refresh loops
+    // const ws = connectWebSocket(handleWebSocketMessage);
+    
+    // Refresh every 2 minutes instead of using WebSocket
+    const interval = setInterval(loadDashboardData, 2 * 60 * 1000);
     
     return () => {
-      if (ws && ws.close) ws.close();
       clearInterval(interval);
     };
-  }, [loadDashboardData, handleWebSocketMessage]);
+  }, [loadDashboardData]);
 
   const processMetricsForCharts = (metricsData) => {
     // Group by timestamp and aggregate response times
