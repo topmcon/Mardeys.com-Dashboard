@@ -19,6 +19,8 @@ const ServiceDetail = () => {
   }, [service, timeRange]);
 
   const loadServiceData = async () => {
+    if (loading) return; // Prevent multiple simultaneous loads
+    
     try {
       const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 1;
       const [metricsRes, statsRes] = await Promise.all([
@@ -26,11 +28,12 @@ const ServiceDetail = () => {
         metricsAPI.getStats({ type: service, period: timeRange })
       ]);
 
-      setMetrics(metricsRes.data.metrics);
+      setMetrics(metricsRes.data.metrics || []);
       setStats(statsRes.data);
     } catch (error) {
-      toast.error(`Failed to load ${service} data`);
-      console.error(error);
+      console.error(`Service data error for ${service}:`, error);
+      setMetrics([]);
+      setStats(null);
     } finally {
       setLoading(false);
     }

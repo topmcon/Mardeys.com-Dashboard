@@ -13,8 +13,13 @@ const Overview = () => {
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [metrics, setMetrics] = useState([]);
   const [chartData, setChartData] = useState([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   const loadDashboardData = useCallback(async () => {
+    // Prevent multiple simultaneous loads
+    if (isLoadingData) return;
+    
+    setIsLoadingData(true);
     try {
       const [overviewRes, alertsRes, metricsRes] = await Promise.all([
         dashboardAPI.getOverview(),
@@ -29,26 +34,29 @@ const Overview = () => {
       const processedMetrics = processMetricsForCharts(metricsRes.data.metrics);
       setChartData(processedMetrics);
     } catch (error) {
-      toast.error('Failed to load dashboard data');
-      console.error(error);
+      console.error('Dashboard data error:', error);
+      // Don't show toast on every error to prevent spam
     } finally {
       setLoading(false);
+      setIsLoadingData(false);
     }
-  }, []);
+  }, [isLoadingData]);
 
   useEffect(() => {
-    loadDashboardData();
+    let mounted = true;
     
-    // Disable WebSocket to prevent refresh loops
-    // const ws = connectWebSocket(handleWebSocketMessage);
+    if (mounted) {
+      loadDashboardData();
+    }
     
-    // Refresh every 2 minutes instead of using WebSocket
-    const interval = setInterval(loadDashboardData, 2 * 60 * 1000);
+    // Disable auto-refresh temporarily
+    // const interval = setInterval(loadDashboardData, 2 * 60 * 1000);
     
     return () => {
-      clearInterval(interval);
+      mounted = false;
+      // clearInterval(interval);
     };
-  }, [loadDashboardData]);
+  }, []); // Empty dependency array - run once on mount
 
   const processMetricsForCharts = (metricsData) => {
     // Group by timestamp and aggregate response times

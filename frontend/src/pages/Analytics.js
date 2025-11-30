@@ -16,6 +16,8 @@ const Analytics = () => {
   }, [timeRange]);
 
   const loadAnalytics = async () => {
+    if (loading) return; // Prevent multiple simultaneous loads
+    
     setLoading(true);
     try {
       const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 1;
@@ -27,13 +29,15 @@ const Analytics = () => {
       ]);
 
       setMetrics({
-        wordpress: wpMetrics.data.metrics,
-        woocommerce: wcMetrics.data.metrics
+        wordpress: wpMetrics.data.metrics || [],
+        woocommerce: wcMetrics.data.metrics || []
       });
       setStats(statsRes.data);
     } catch (error) {
-      toast.error('Failed to load analytics data');
-      console.error(error);
+      console.error('Analytics data error:', error);
+      // Set empty data on error
+      setMetrics({ wordpress: [], woocommerce: [] });
+      setStats(null);
     } finally {
       setLoading(false);
     }
