@@ -5,13 +5,13 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
 
-import Layout from './components/Layout';
-import Login from './pages/Login';
-import Overview from './pages/Overview';
-import WordPressPage from './pages/WordPressPage';
-import WooCommercePage from './pages/WooCommercePage';
-import DigitalOceanPage from './pages/DigitalOceanPage';
-import CloudflarePage from './pages/CloudflarePage';
+// New Professional Dashboard Pages
+import Overview from './pages/dashboard/Overview';
+import WebsiteHealth from './pages/dashboard/WebsiteHealth';
+import DropletHealth from './pages/dashboard/DropletHealth';
+import BusinessKPIs from './pages/dashboard/BusinessKPIs';
+
+// Legacy pages (keeping for compatibility)
 import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
 
@@ -20,13 +20,14 @@ const PrivateRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  // Demo mode - always authenticated
+  return children;
 };
 
 function App() {
@@ -35,64 +36,45 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
+            {/* Main Dashboard Routes */}
             <Route path="/login" element={<Navigate to="/dashboard" replace />} />
             <Route
               path="/dashboard"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <Overview />
-                  </Layout>
+                  <Overview />
                 </PrivateRoute>
               }
             />
             <Route
-              path="/dashboard/services"
+              path="/dashboard/overview"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <Overview />
-                  </Layout>
+                  <Overview />
                 </PrivateRoute>
               }
             />
             <Route
-              path="/dashboard/wordpress"
+              path="/dashboard/website"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <WordPressPage />
-                  </Layout>
+                  <WebsiteHealth />
                 </PrivateRoute>
               }
             />
             <Route
-              path="/dashboard/woocommerce"
+              path="/dashboard/droplet"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <WooCommercePage />
-                  </Layout>
+                  <DropletHealth />
                 </PrivateRoute>
               }
             />
             <Route
-              path="/dashboard/digitalocean"
+              path="/dashboard/business"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <DigitalOceanPage />
-                  </Layout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/dashboard/cloudflare"
-              element={
-                <PrivateRoute>
-                  <Layout>
-                    <CloudflarePage />
-                  </Layout>
+                  <BusinessKPIs />
                 </PrivateRoute>
               }
             />
@@ -100,9 +82,7 @@ function App() {
               path="/dashboard/alerts"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <Alerts />
-                  </Layout>
+                  <Alerts />
                 </PrivateRoute>
               }
             />
@@ -110,9 +90,7 @@ function App() {
               path="/dashboard/settings"
               element={
                 <PrivateRoute>
-                  <Layout>
-                    <Settings />
-                  </Layout>
+                  <Settings />
                 </PrivateRoute>
               }
             />
@@ -129,6 +107,7 @@ function App() {
             pauseOnFocusLoss
             draggable
             pauseOnHover
+            theme="dark"
           />
         </div>
       </Router>
