@@ -65,10 +65,10 @@ const Overview = () => {
   const handleAcknowledgeAlert = async (alertId) => {
     try {
       await alertsAPI.acknowledgeAlert(alertId);
-      toast.success('Alert acknowledged');
-      loadDashboardData();
+      // Reload page to refresh data
+      window.location.reload();
     } catch (error) {
-      toast.error('Failed to acknowledge alert');
+      console.error('Failed to acknowledge alert:', error);
     }
   };
 
