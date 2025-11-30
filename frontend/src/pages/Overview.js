@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { dashboardAPI, metricsAPI, alertsAPI } from '../services/api';
-import { toast } from 'react-toastify';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatDistanceToNow } from 'date-fns';
 import StatCard from '../components/StatCard';
 import ServiceStatusCard from '../components/ServiceStatusCard';
@@ -11,15 +10,14 @@ const Overview = () => {
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeAlerts, setActiveAlerts] = useState([]);
-  const [metrics, setMetrics] = useState([]);
   const [chartData, setChartData] = useState([]);
-  const [isLoadingData, setIsLoadingData] = useState(false);
+  const hasLoadedRef = useRef(false);
 
-  const loadDashboardData = useCallback(async () => {
-    // Prevent multiple simultaneous loads
-    if (isLoadingData) return;
+  const loadDashboardData = async () => {
+    // Prevent multiple loads using ref
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
     
-    setIsLoadingData(true);
     try {
       const [overviewRes, alertsRes, metricsRes] = await Promise.all([
         dashboardAPI.getOverview(),
@@ -35,28 +33,15 @@ const Overview = () => {
       setChartData(processedMetrics);
     } catch (error) {
       console.error('Dashboard data error:', error);
-      // Don't show toast on every error to prevent spam
     } finally {
       setLoading(false);
-      setIsLoadingData(false);
     }
-  }, [isLoadingData]);
+  };
 
   useEffect(() => {
-    let mounted = true;
-    
-    if (mounted) {
-      loadDashboardData();
-    }
-    
-    // Disable auto-refresh temporarily
-    // const interval = setInterval(loadDashboardData, 2 * 60 * 1000);
-    
-    return () => {
-      mounted = false;
-      // clearInterval(interval);
-    };
-  }, []); // Empty dependency array - run once on mount
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency - run ONCE on mount only
 
   const processMetricsForCharts = (metricsData) => {
     // Group by timestamp and aggregate response times

@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { metricsAPI } from '../services/api';
-import { toast } from 'react-toastify';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { formatDistanceToNow } from 'date-fns';
 
 const ServiceDetail = () => {
@@ -10,8 +9,8 @@ const ServiceDetail = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState([]);
-  const [stats, setStats] = useState(null);
   const [timeRange, setTimeRange] = useState('24h');
+  const hasLoadedRef = useRef({});
 
   useEffect(() => {
     loadServiceData();
@@ -19,21 +18,17 @@ const ServiceDetail = () => {
   }, [service, timeRange]);
 
   const loadServiceData = async () => {
-    if (loading) return; // Prevent multiple simultaneous loads
+    const key = `${service}-${timeRange}`;
+    if (hasLoadedRef.current[key]) return;
+    hasLoadedRef.current[key] = true;
     
     try {
       const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 1;
-      const [metricsRes, statsRes] = await Promise.all([
-        metricsAPI.getMetrics({ type: service, hours, limit: 50 }),
-        metricsAPI.getStats({ type: service, period: timeRange })
-      ]);
-
+      const metricsRes = await metricsAPI.getMetrics({ type: service, hours, limit: 50 });
       setMetrics(metricsRes.data.metrics || []);
-      setStats(statsRes.data);
     } catch (error) {
       console.error(`Service data error for ${service}:`, error);
       setMetrics([]);
-      setStats(null);
     } finally {
       setLoading(false);
     }

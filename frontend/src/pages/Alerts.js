@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { alertsAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import AlertCard from '../components/AlertCard';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays } from 'date-fns';
 
 const Alerts = () => {
@@ -11,24 +11,27 @@ const Alerts = () => {
   const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState('all');
+  const hasLoadedRef = useRef(false);
 
-  const loadAlerts = useCallback(async () => {
+  const loadAlerts = async () => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    
     try {
       const response = await alertsAPI.getAlerts({ limit: 100 });
-      setAlerts(response.data.alerts);
+      setAlerts(response.data.alerts || []);
     } catch (error) {
-      toast.error('Failed to load alerts');
-      console.error(error);
+      console.error('Alerts error:', error);
+      setAlerts([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     loadAlerts();
-    const interval = setInterval(loadAlerts, 30000);
-    return () => clearInterval(interval);
-  }, [loadAlerts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAcknowledge = async (alertId) => {
     try {

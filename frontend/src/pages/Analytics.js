@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { metricsAPI } from '../services/api';
-import { toast } from 'react-toastify';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
@@ -8,7 +7,7 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
   const [metrics, setMetrics] = useState([]);
-  const [stats, setStats] = useState(null);
+  const hasLoadedRef = useRef({});
 
   useEffect(() => {
     loadAnalytics();
@@ -16,28 +15,25 @@ const Analytics = () => {
   }, [timeRange]);
 
   const loadAnalytics = async () => {
-    if (loading) return; // Prevent multiple simultaneous loads
+    if (hasLoadedRef.current[timeRange]) return;
+    hasLoadedRef.current[timeRange] = true;
     
     setLoading(true);
     try {
       const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 1;
       
-      const [wpMetrics, wcMetrics, statsRes] = await Promise.all([
+      const [wpMetrics, wcMetrics] = await Promise.all([
         metricsAPI.getMetrics({ type: 'wordpress', hours, limit: 100 }),
-        metricsAPI.getMetrics({ type: 'woocommerce', hours, limit: 100 }),
-        metricsAPI.getStats({ period: timeRange })
+        metricsAPI.getMetrics({ type: 'woocommerce', hours, limit: 100 })
       ]);
 
       setMetrics({
         wordpress: wpMetrics.data.metrics || [],
         woocommerce: wcMetrics.data.metrics || []
       });
-      setStats(statsRes.data);
     } catch (error) {
       console.error('Analytics data error:', error);
-      // Set empty data on error
       setMetrics({ wordpress: [], woocommerce: [] });
-      setStats(null);
     } finally {
       setLoading(false);
     }
