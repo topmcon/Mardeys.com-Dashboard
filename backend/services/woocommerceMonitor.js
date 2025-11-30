@@ -151,13 +151,15 @@ class WooCommerceMonitor {
 
   async checkHealth() {
     try {
-      const response = await axios.get(`${this.baseUrl}/wc/v3/system_status`, {
-        ...this.getAuthConfig()
+      // Use public Store API endpoint instead of authenticated v3 API
+      const response = await axios.get(`${this.baseUrl}/wc/store/products`, {
+        params: { per_page: 1 },
+        timeout: 10000
       });
 
       return {
-        isHealthy: response.status === 200,
-        version: response.data.environment?.version,
+        isHealthy: response.status === 200 && Array.isArray(response.data),
+        productsAvailable: response.data?.length > 0,
         timestamp: new Date()
       };
     } catch (error) {
