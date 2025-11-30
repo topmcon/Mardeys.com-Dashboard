@@ -61,8 +61,7 @@ router.get('/woocommerce', async (req, res) => {
       service: 'woocommerce',
       url: process.env.WORDPRESS_URL,
       health: {
-        isUp: health.isUp,
-        responseTime: health.responseTime,
+        isUp: health.isHealthy,
         productsAvailable: health.productsAvailable
       },
       orders: orderStats,
@@ -85,11 +84,11 @@ router.get('/woocommerce', async (req, res) => {
 // ============== DIGITALOCEAN ==============
 router.get('/digitalocean', async (req, res) => {
   try {
-    const [dropletInfo, health, metrics, billing] = await Promise.all([
+    const [dropletInfo, health, metrics, account] = await Promise.all([
       doMonitor.getDropletInfo(),
       doMonitor.checkDropletHealth(),
       doMonitor.getDropletMetrics('1h').catch(() => null),
-      doMonitor.getBillingInfo().catch(() => null)
+      doMonitor.getAccountInfo().catch(() => null)
     ]);
 
     res.json({
@@ -100,12 +99,12 @@ router.get('/digitalocean', async (req, res) => {
         status: health.status
       },
       metrics: {
-        cpu: metrics?.cpu,
-        memory: metrics?.memory,
-        disk: metrics?.disk,
-        bandwidth: metrics?.bandwidth
+        cpu: metrics?.cpu?.current,
+        memory: metrics?.memory?.current,
+        disk: metrics?.disk?.current,
+        bandwidth: metrics?.bandwidth?.current
       },
-      billing: billing,
+      account: account,
       lastChecked: new Date()
     });
   } catch (error) {
