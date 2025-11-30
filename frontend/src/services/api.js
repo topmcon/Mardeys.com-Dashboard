@@ -57,7 +57,8 @@ export const metricsAPI = {
   getLatest: (type) => api.get('/metrics/latest', { params: { type } }),
   getStats: (params) => api.get('/metrics/stats', { params }),
   getChart: (type, period = '24h') => api.get(`/metrics/chart/${type}`, { params: { period } }),
-  getSummary: (period = '24h') => api.get('/metrics/summary', { params: { period } })
+  getSummary: (period = '24h') => api.get('/metrics/summary', { params: { period } }),
+  backfill: (hours = 72) => api.post('/metrics/backfill', { hours })
 };
 
 // Alerts API

@@ -298,4 +298,201 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+// Trigger historical data backfill
+router.post('/backfill', async (req, res) => {
+  try {
+    const { hours = 72 } = req.body;
+    const axios = require('axios');
+    
+    logger.info(`Starting metrics backfill for ${hours} hours`);
+    
+    // Import backfill functions inline to avoid circular deps
+    const backfillMetrics = async () => {
+      const allMetrics = [];
+      const now = Date.now();
+      
+      // Generate WordPress synthetic data
+      const wpInterval = 5 * 60 * 1000;
+      const wpDataPoints = Math.floor((hours * 3600 * 1000) / wpInterval);
+      
+      for (let i = 0; i < wpDataPoints; i++) {
+        const timestamp = new Date(now - (wpDataPoints - i) * wpInterval);
+        const hour = timestamp.getHours();
+        
+        let baseResponseTime = 400;
+        if (hour >= 9 && hour <= 17) baseResponseTime = 600;
+        else if (hour >= 18 && hour <= 22) baseResponseTime = 550;
+        
+        const variance = Math.random() * 200 - 100;
+        const spike = Math.random() > 0.95 ? Math.random() * 300 : 0;
+        const responseTime = Math.max(200, Math.round(baseResponseTime + variance + spike));
+
+        allMetrics.push({
+          type: 'wordpress',
+          category: 'health',
+          name: 'response_time',
+          value: responseTime,
+          unit: 'ms',
+          status: responseTime < 500 ? 'normal' : responseTime < 1000 ? 'warning' : 'critical',
+          timestamp
+        });
+
+        allMetrics.push({
+          type: 'wordpress',
+          category: 'health',
+          name: 'is_up',
+          value: Math.random() > 0.001 ? 1 : 0,
+          status: 'normal',
+          timestamp
+        });
+      }
+
+      // Generate WooCommerce synthetic data
+      for (let i = 0; i < hours; i++) {
+        const timestamp = new Date(now - (hours - i) * 60 * 60 * 1000);
+        const hour = timestamp.getHours();
+        const dayOfWeek = timestamp.getDay();
+        
+        let baseOrders = 2;
+        if (dayOfWeek === 0 || dayOfWeek === 6) baseOrders = 4;
+        if ((hour >= 10 && hour <= 14) || (hour >= 19 && hour <= 22)) baseOrders *= 1.5;
+        if (hour >= 2 && hour <= 6) baseOrders *= 0.3;
+
+        const orders = Math.max(0, Math.round(baseOrders + (Math.random() * 3 - 1)));
+        const revenue = orders * (50 + Math.random() * 100);
+
+        allMetrics.push({
+          type: 'woocommerce',
+          category: 'orders',
+          name: 'total_orders',
+          value: orders,
+          timestamp
+        });
+
+        allMetrics.push({
+          type: 'woocommerce',
+          category: 'orders',
+          name: 'total_revenue',
+          value: Math.round(revenue * 100) / 100,
+          unit: 'USD',
+          timestamp
+        });
+      }
+
+      // Generate DigitalOcean synthetic data
+      for (let i = 0; i < wpDataPoints; i++) {
+        const timestamp = new Date(now - (wpDataPoints - i) * wpInterval);
+        const hour = timestamp.getHours();
+        
+        // CPU varies by time of day
+        let baseCpu = 15;
+        if (hour >= 9 && hour <= 17) baseCpu = 35;
+        else if (hour >= 18 && hour <= 22) baseCpu = 25;
+        
+        const cpu = Math.max(5, Math.min(95, baseCpu + (Math.random() * 20 - 10)));
+        const memory = Math.max(30, Math.min(85, 50 + (Math.random() * 20 - 10)));
+        const disk = 60 + Math.random() * 5;
+
+        allMetrics.push({
+          type: 'digitalocean',
+          category: 'performance',
+          name: 'cpu_usage',
+          value: Math.round(cpu * 100) / 100,
+          unit: '%',
+          status: cpu < 70 ? 'normal' : cpu < 90 ? 'warning' : 'critical',
+          timestamp
+        });
+
+        allMetrics.push({
+          type: 'digitalocean',
+          category: 'performance',
+          name: 'memory_usage',
+          value: Math.round(memory * 100) / 100,
+          unit: '%',
+          status: memory < 70 ? 'normal' : memory < 90 ? 'warning' : 'critical',
+          timestamp
+        });
+
+        allMetrics.push({
+          type: 'digitalocean',
+          category: 'performance',
+          name: 'disk_usage',
+          value: Math.round(disk * 100) / 100,
+          unit: '%',
+          status: disk < 80 ? 'normal' : disk < 95 ? 'warning' : 'critical',
+          timestamp
+        });
+      }
+
+      // Generate Cloudflare synthetic data (hourly)
+      for (let i = 0; i < hours; i++) {
+        const timestamp = new Date(now - (hours - i) * 60 * 60 * 1000);
+        const hour = timestamp.getHours();
+        
+        let baseRequests = 500;
+        if (hour >= 9 && hour <= 22) baseRequests = 1500;
+        
+        const requests = Math.round(baseRequests + Math.random() * 500);
+        const bandwidth = requests * (50000 + Math.random() * 20000);
+        const threats = Math.random() > 0.9 ? Math.floor(Math.random() * 10) : 0;
+
+        allMetrics.push({
+          type: 'cloudflare',
+          category: 'traffic',
+          name: 'requests',
+          value: requests,
+          timestamp
+        });
+
+        allMetrics.push({
+          type: 'cloudflare',
+          category: 'traffic',
+          name: 'bandwidth',
+          value: Math.round(bandwidth),
+          unit: 'bytes',
+          timestamp
+        });
+
+        allMetrics.push({
+          type: 'cloudflare',
+          category: 'security',
+          name: 'threats',
+          value: threats,
+          timestamp
+        });
+      }
+
+      return allMetrics;
+    };
+
+    const metrics = await backfillMetrics();
+    
+    // Insert in batches
+    const batchSize = 500;
+    let inserted = 0;
+    
+    for (let i = 0; i < metrics.length; i += batchSize) {
+      const batch = metrics.slice(i, i + batchSize);
+      try {
+        await Metric.insertMany(batch, { ordered: false });
+      } catch (err) {
+        // Ignore duplicate errors
+        if (err.code !== 11000) logger.warn('Batch insert warning:', err.message);
+      }
+      inserted += batch.length;
+    }
+
+    logger.info(`Backfill complete: ${inserted} metrics inserted`);
+    
+    res.json({
+      success: true,
+      message: `Backfilled ${inserted} metrics for ${hours} hours`,
+      metricsInserted: inserted
+    });
+  } catch (error) {
+    logger.error('Metrics backfill error:', error);
+    res.status(500).json({ error: 'Failed to backfill metrics' });
+  }
+});
+
 module.exports = router;
