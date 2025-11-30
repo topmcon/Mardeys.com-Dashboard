@@ -17,14 +17,14 @@ const Alerts = () => {
     if (hasLoadedRef.current) return;
     hasLoadedRef.current = true;
     
+    setLoading(false);
+    
     try {
-      const response = await alertsAPI.getAlerts({ limit: 100 });
+      const response = await alertsAPI.getAlerts({ limit: 100 }).catch(e => ({ data: { alerts: [] } }));
       setAlerts(response.data.alerts || []);
     } catch (error) {
       console.error('Alerts error:', error);
       setAlerts([]);
-    } finally {
-      setLoading(false);
     }
   };
 

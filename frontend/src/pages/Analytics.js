@@ -18,13 +18,14 @@ const Analytics = () => {
     if (hasLoadedRef.current[timeRange]) return;
     hasLoadedRef.current[timeRange] = true;
     
-    setLoading(true);
+    setLoading(false);
+    
     try {
       const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 1;
       
       const [wpMetrics, wcMetrics] = await Promise.all([
-        metricsAPI.getMetrics({ type: 'wordpress', hours, limit: 100 }),
-        metricsAPI.getMetrics({ type: 'woocommerce', hours, limit: 100 })
+        metricsAPI.getMetrics({ type: 'wordpress', hours, limit: 100 }).catch(e => ({ data: { metrics: [] } })),
+        metricsAPI.getMetrics({ type: 'woocommerce', hours, limit: 100 }).catch(e => ({ data: { metrics: [] } }))
       ]);
 
       setMetrics({
@@ -34,8 +35,6 @@ const Analytics = () => {
     } catch (error) {
       console.error('Analytics data error:', error);
       setMetrics({ wordpress: [], woocommerce: [] });
-    } finally {
-      setLoading(false);
     }
   };
 

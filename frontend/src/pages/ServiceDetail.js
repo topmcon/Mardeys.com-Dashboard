@@ -22,15 +22,15 @@ const ServiceDetail = () => {
     if (hasLoadedRef.current[key]) return;
     hasLoadedRef.current[key] = true;
     
+    setLoading(false);
+    
     try {
       const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 1;
-      const metricsRes = await metricsAPI.getMetrics({ type: service, hours, limit: 50 });
+      const metricsRes = await metricsAPI.getMetrics({ type: service, hours, limit: 50 }).catch(e => ({ data: { metrics: [] } }));
       setMetrics(metricsRes.data.metrics || []);
     } catch (error) {
       console.error(`Service data error for ${service}:`, error);
       setMetrics([]);
-    } finally {
-      setLoading(false);
     }
   };
 
