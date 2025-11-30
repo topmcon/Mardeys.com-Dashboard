@@ -15,6 +15,7 @@ const ServiceDetail = () => {
 
   useEffect(() => {
     loadServiceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [service, timeRange]);
 
   const loadServiceData = async () => {

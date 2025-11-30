@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { dashboardAPI, metricsAPI, alertsAPI, connectWebSocket } from '../services/api';
 import { toast } from 'react-toastify';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -14,28 +14,7 @@ const Overview = () => {
   const [metrics, setMetrics] = useState([]);
   const [chartData, setChartData] = useState([]);
 
-  useEffect(() => {
-    loadDashboardData();
-    
-    const ws = connectWebSocket(handleWebSocketMessage);
-    const interval = setInterval(loadDashboardData, 5 * 60 * 1000);
-    
-    return () => {
-      ws.close();
-      clearInterval(interval);
-    };
-  }, []);
-
-  const handleWebSocketMessage = (message) => {
-    if (message.type === 'new_alert') {
-      toast.warning(`New Alert: ${message.data.title}`);
-      loadDashboardData();
-    } else if (message.type === 'health_check' || message.type === 'metrics_update') {
-      loadDashboardData();
-    }
-  };
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       const [overviewRes, alertsRes, metricsRes] = await Promise.all([
         dashboardAPI.getOverview(),
@@ -55,7 +34,28 @@ const Overview = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const handleWebSocketMessage = useCallback((message) => {
+    if (message.type === 'new_alert') {
+      toast.warning(`New Alert: ${message.data.title}`);
+      loadDashboardData();
+    } else if (message.type === 'health_check' || message.type === 'metrics_update') {
+      loadDashboardData();
+    }
+  }, [loadDashboardData]);
+
+  useEffect(() => {
+    loadDashboardData();
+    
+    const ws = connectWebSocket(handleWebSocketMessage);
+    const interval = setInterval(loadDashboardData, 5 * 60 * 1000);
+    
+    return () => {
+      if (ws && ws.close) ws.close();
+      clearInterval(interval);
+    };
+  }, [loadDashboardData, handleWebSocketMessage]);
 
   const processMetricsForCharts = (metricsData) => {
     // Group by timestamp and aggregate response times

@@ -12,6 +12,7 @@ const Analytics = () => {
 
   useEffect(() => {
     loadAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange]);
 
   const loadAnalytics = async () => {

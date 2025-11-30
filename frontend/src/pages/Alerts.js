@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { alertsAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import AlertCard from '../components/AlertCard';
@@ -12,13 +12,7 @@ const Alerts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState('all');
 
-  useEffect(() => {
-    loadAlerts();
-    const interval = setInterval(loadAlerts, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     try {
       const response = await alertsAPI.getAlerts({ limit: 100 });
       setAlerts(response.data.alerts);
@@ -28,7 +22,13 @@ const Alerts = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadAlerts();
+    const interval = setInterval(loadAlerts, 30000);
+    return () => clearInterval(interval);
+  }, [loadAlerts]);
 
   const handleAcknowledge = async (alertId) => {
     try {
